@@ -7,6 +7,10 @@ import { authRoutes } from '../routes/auth.js';
 import { circleRoutes } from '../routes/circle.js';
 import { medsRoutes } from '../routes/meds.js';
 import { dosesRoutes } from '../routes/doses.js';
+import { appointmentsRoutes } from '../routes/appointments.js';
+import { suggestionsRoutes } from '../routes/suggestions.js';
+import { adherenceRoutes } from '../routes/adherence.js';
+import { scanRoutes } from '../routes/scan.js';
 import { publicRoutes } from '../routes/public.js';
 import { demoRoutes } from '../routes/demo.js';
 
@@ -41,7 +45,7 @@ app.onError((err, c) => {
   );
 });
 
-// Phase 0: Health check endpoint
+// Health check endpoint
 app.get('/health', (c) => {
   return c.json({
     status: 'ok',
@@ -64,6 +68,10 @@ app.route('/p', publicRoutes); // Public one-tap confirmation routes
 app.route('/auth', authRoutes);
 app.route('/meds', medsRoutes);
 app.route('/doses', dosesRoutes);
+app.route('/appointments', appointmentsRoutes);
+app.route('/suggestions', suggestionsRoutes);
+app.route('/adherence', adherenceRoutes);
+app.route('/scan', scanRoutes);
 app.route('/demo', demoRoutes);
 app.route('/', circleRoutes);
 

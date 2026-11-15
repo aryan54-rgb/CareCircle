@@ -55,3 +55,24 @@ export const updateMedicationSchema = createMedicationSchema.partial().extend({
   active: z.boolean().optional(),
 });
 
+export const createAppointmentSchema = z.object({
+  doctor: z.string().min(2).max(100),
+  place: z.string().min(2).max(150),
+  notes: z.string().max(500).optional(),
+  startsAt: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, 'startsAt must be ISO datetime'),
+});
+
+export const updateAppointmentSchema = createAppointmentSchema.partial();
+
+export const createSuggestionSchema = z.object({
+  type: z.enum(['NEW_MED', 'CHANGE_MED', 'APPOINTMENT']),
+  title: z.string().min(3).max(150),
+  payload: z.record(z.any()),
+});
+
+export const decideSuggestionSchema = z.object({
+  decisionNote: z.string().max(300).optional(),
+});
+
+
+

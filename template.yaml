@@ -1,0 +1,238 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: CareCircle - Elderly Care & Medication Management Platform
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: nodejs22.x
+    Architectures:
+      - x86_64
+    LoggingConfig:
+      LogFormat: JSON
+    Environment:
+      Variables:
+        TABLE_NAME: !Ref CareTable
+        JWT_PARAM_NAME: /carecircle/jwt-secret
+        SES_FROM: carecircle-demo@carecircle.local
+        APP_URL: http://localhost:5173
+        BEDROCK_REGION: us-east-1
+        BEDROCK_MODEL_ID: us.amazon.nova-2-lite-v1:0
+        MAIL_DRIVER: ses
+        DEMO_MODE: 'true'
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    Description: Environment stage (dev/prod)
+
+Resources:
+  # ==========================================
+  # Single Table DynamoDB
+  # ==========================================
+  CareTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub carecircle-${Stage}-table
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+        - AttributeName: GSI1PK
+          AttributeType: S
+        - AttributeName: GSI1SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: GSI1
+          KeySchema:
+            - AttributeName: GSI1PK
+              KeyType: HASH
+            - AttributeName: GSI1SK
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+
+  # ==========================================
+  # JWT Secret SSM Parameter
+  # ==========================================
+  JwtSecretParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /carecircle/jwt-secret
+      Type: String
+      Value: carecircle-super-secret-jwt-key-for-hackathon-2026-min32chars!
+      Description: Secret key used to sign and verify CareCircle JWTs
+
+  # ==========================================
+  # HTTP API Gateway
+  # ==========================================
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins:
+          - '*'
+        AllowHeaders:
+          - '*'
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+
+  # ==========================================
+  # API Lambda (Hono router)
+  # ==========================================
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./backend
+      Handler: src/handlers/api.handler
+      Description: Hono HTTP router handling all REST endpoints
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareTable
+        - SSMParameterReadPolicy:
+            ParameterName: carecircle/*
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: '*'
+      Events:
+        Root:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /
+            Method: ANY
+        Proxy:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /{proxy+}
+            Method: ANY
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - src/handlers/api.ts
+
+  # ==========================================
+  # Ticker Lambda (1-minute schedule)
+  # ==========================================
+  TickerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./backend
+      Handler: src/handlers/ticker.handler
+      Description: 1-minute ticker checking due doses/appointments and advancing state
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareTable
+        - SSMParameterReadPolicy:
+            ParameterName: carecircle/*
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: '*'
+      Events:
+        TickerSchedule:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 minute)
+            Description: EventBridge Scheduler tick every 1 minute
+            State: ENABLED
+            FlexibleTimeWindow:
+              Mode: 'OFF'
+        DailyExtendHorizon:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(0 0 * * ? *)
+            Description: Daily horizon extension for active medications
+            Input: '{"task":"extend-horizon"}'
+            State: ENABLED
+            FlexibleTimeWindow:
+              Mode: 'OFF'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - src/handlers/ticker.ts
+
+  # ==========================================
+  # Weekly Digest Lambda
+  # ==========================================
+  DigestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: ./backend
+      Handler: src/handlers/digest.handler
+      Description: Weekly adherence report summary for family
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CareTable
+        - SSMParameterReadPolicy:
+            ParameterName: carecircle/*
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+                - ses:SendRawEmail
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+              Resource: '*'
+      Events:
+        WeeklyDigestSchedule:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: cron(0 9 ? * SUN *)
+            Description: Weekly digest on Sundays at 9:00 AM UTC
+            State: ENABLED
+            FlexibleTimeWindow:
+              Mode: 'OFF'
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: false
+        Target: es2022
+        Sourcemap: false
+        EntryPoints:
+          - src/handlers/digest.ts
+
+Outputs:
+  ApiUrl:
+    Description: HTTP API Gateway endpoint URL
+    Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+  CareTableName:
+    Description: DynamoDB Table Name
+    Value: !Ref CareTable

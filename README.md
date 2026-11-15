@@ -105,7 +105,7 @@ stateDiagram-v2
 
 ## 5. Demo Walkthrough & Accounts
 
-See [docs/DEMO.md](docs/DEMO.md) for the exact 3-minute hackathon pitch script and pre-demo checklist.
+See [docs/DEMO.md](docs/DEMO.md) for the end-to-end feature walkthrough and verification guide.
 
 Run the seed script locally or use the in-app **"Reset Demo"** button on the caretaker dashboard:
 ```bash

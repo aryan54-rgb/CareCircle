@@ -1,15 +1,15 @@
 # CareCircle: Project Handover & Context Document
 
 > **Date:** November 15, 2026  
-> **Status:** Hackathon-Ready (All P0, P1, P2, P3 tiers complete & verified)  
+> **Status:** Production-Ready & Feature-Complete (All P0, P1, P2, P3 tiers verified)  
 > **Repository:** [https://github.com/aryan54-rgb/CareCircle.git](https://github.com/aryan54-rgb/CareCircle.git)  
-> **Branch:** `main` (Latest commit: `bafd9f0`)  
+> **Branch:** `main` (Latest commit: `bf5f71e`)  
 
 ---
 
 ## 1. Project Summary & Architecture
 
-**CareCircle** is an elderly care and medication safety platform built for a one-day hackathon. It combines:
+**CareCircle** is an elderly care and medication safety platform. It combines:
 - An **elder-first frontend** with large typography, speech synthesis read-aloud (English, Hindi, Marathi), and high-contrast touch targets.
 - A **multi-tiered dose escalation state machine**: `SCHEDULED` ➔ `REMINDED` (elder) ➔ `ESCALATED_1` (caretakers) ➔ `ESCALATED_2` (family) ➔ `MISSED`.
 - **One-tap confirm links** sent via Amazon SES emails with cryptographic tokens (GET landing page safe against crawlers, POST mutation).
@@ -66,7 +66,7 @@
 15. **Confidence-Aware AI Scan Review:** Added amber confidence badges on Bedrock-extracted fields and a mandatory physical verification safety checkbox (*"I have physically verified the label against the bottle"*) before the save button unlocks.
 17. **Accessibility Pass:** 60px+ touch targets on all elder actions, high-contrast text and border treatments, focus rings, and explicit button labels.
 18. **README Polish:** Updated [README.md](README.md) with GitHub-rendered Mermaid diagrams for system architecture and the dose escalation state machine, plus honest architectural trade-offs.
-19. **Demo Playbook:** Created [docs/DEMO.md](docs/DEMO.md) with the complete 3-minute hackathon pitch script, pre-demo checklist, fallback contingency plans, and credentials.
+19. **Feature Walkthrough Guide:** Created [docs/DEMO.md](docs/DEMO.md) with the end-to-end testing playbook, feature verification steps, operational notes, and account credentials.
 20. **Cleanup & Deployment:** Deleted the 14.8 MB `OfficialCommunityDeck.pptx` from Git. Updated `index.html` title, description, and OpenGraph metadata. Configured `vercel.json` and `frontend/vercel.json` for monorepo SPA deployment.
 
 ---

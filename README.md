@@ -140,8 +140,14 @@ npm run seed
 ## 7. Testing & Verification
 
 ```bash
-# Run Vitest test suite (25 unit tests covering state machines, horizon extension, tokens, permissions)
+# Run backend Vitest test suite (38 unit and integration tests)
 cd backend && npm test
+
+# Run frontend Vitest test suite (3 component and localization tests)
+cd frontend && npm test
+
+# Run all tests across backend and frontend (41 total tests)
+npm test
 
 # Run live AWS integration tests against deployed stack in ap-south-1
 npx tsx scripts/e2e/test-phase1.ts

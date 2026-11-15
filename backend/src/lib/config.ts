@@ -6,7 +6,7 @@ export const config = {
   tableName: process.env.TABLE_NAME || 'carecircle-dev-table',
   sesFrom: process.env.SES_FROM || 'carecircle-demo@carecircle.local',
   appUrl: process.env.APP_URL || 'http://localhost:5173',
-  apiUrl: process.env.API_URL || '',
+  apiUrl: process.env.API_URL || 'https://odu8ihixga.execute-api.ap-south-1.amazonaws.com',
   jwtParamName: process.env.JWT_PARAM_NAME || '/carecircle/jwt-secret',
   bedrockRegion: process.env.BEDROCK_REGION || 'us-east-1',
   bedrockModelId: process.env.BEDROCK_MODEL_ID || 'us.amazon.nova-2-lite-v1:0',

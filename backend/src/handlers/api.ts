@@ -7,6 +7,8 @@ import { authRoutes } from '../routes/auth.js';
 import { circleRoutes } from '../routes/circle.js';
 import { medsRoutes } from '../routes/meds.js';
 import { dosesRoutes } from '../routes/doses.js';
+import { publicRoutes } from '../routes/public.js';
+import { demoRoutes } from '../routes/demo.js';
 
 const app = new Hono();
 
@@ -58,9 +60,11 @@ app.get('/', (c) => {
 });
 
 // Mount modular sub-routers
+app.route('/p', publicRoutes); // Public one-tap confirmation routes
 app.route('/auth', authRoutes);
 app.route('/meds', medsRoutes);
 app.route('/doses', dosesRoutes);
+app.route('/demo', demoRoutes);
 app.route('/', circleRoutes);
 
 export const handler = handle(app);

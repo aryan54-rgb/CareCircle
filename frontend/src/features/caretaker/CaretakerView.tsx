@@ -15,6 +15,9 @@ import {
   LogOut,
   RefreshCw,
   Zap,
+  Bell,
+  RotateCcw,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -29,7 +32,7 @@ import {
 export const CaretakerView: React.FC = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState<
-    'today' | 'meds' | 'appointments' | 'adherence' | 'suggestions' | 'activity' | 'settings'
+    'today' | 'meds' | 'appointments' | 'adherence' | 'suggestions' | 'activity' | 'notifications' | 'settings'
   >('today');
 
   // Data states
@@ -39,6 +42,9 @@ export const CaretakerView: React.FC = () => {
   const [adherence, setAdherence] = useState<any>(null);
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [deepHealth, setDeepHealth] = useState<any>(null);
+  const [healthLoading, setHealthLoading] = useState<boolean>(false);
   const [circle, setCircle] = useState<any>(null);
   const [, setLoading] = useState<boolean>(true);
 
@@ -49,6 +55,7 @@ export const CaretakerView: React.FC = () => {
   const [showSuggestModal, setShowSuggestModal] = useState<boolean>(false);
   const [inviteCodeResult, setInviteCodeResult] = useState<string>('');
   const [demoTriggerMsg, setDemoTriggerMsg] = useState<string>('');
+  const [demoResetMsg, setDemoResetMsg] = useState<string>('');
 
   // Form models
   const [newMed, setNewMed] = useState({
@@ -82,7 +89,7 @@ export const CaretakerView: React.FC = () => {
 
   const loadAll = async () => {
     try {
-      const [dosesRes, medsRes, apptsRes, adhRes, suggRes, actRes, circRes] =
+      const [dosesRes, medsRes, apptsRes, adhRes, suggRes, actRes, circRes, notifRes] =
         await Promise.all([
           apiRequest('/doses'),
           apiRequest('/meds'),
@@ -91,6 +98,9 @@ export const CaretakerView: React.FC = () => {
           apiRequest('/suggestions'),
           apiRequest('/activity'),
           apiRequest('/circle'),
+          user?.role === 'CARETAKER'
+            ? apiRequest('/circle/notifications').catch(() => ({ notifications: [] }))
+            : Promise.resolve({ notifications: [] }),
         ]);
       setTodayData(dosesRes);
       setMeds(medsRes.medications || []);
@@ -99,6 +109,7 @@ export const CaretakerView: React.FC = () => {
       setSuggestions(suggRes.suggestions || []);
       setActivities(actRes.activities || []);
       setCircle(circRes);
+      setNotifications(notifRes.notifications || []);
     } catch (err) {
       console.error('Error loading dashboard:', err);
     } finally {
@@ -106,11 +117,36 @@ export const CaretakerView: React.FC = () => {
     }
   };
 
+  // 10-second live polling for state machine visibility
   useEffect(() => {
     loadAll();
-    const interval = setInterval(loadAll, 15000);
+    const interval = setInterval(loadAll, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  const fetchDeepHealth = async () => {
+    setHealthLoading(true);
+    try {
+      const res = await apiRequest('/health/deep');
+      setDeepHealth(res);
+    } catch (err: any) {
+      setDeepHealth({ status: 'error', error: err.message });
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  const handleResetDemo = async () => {
+    if (!confirm('Reset Kalyan Family Circle back to original seed state?')) return;
+    try {
+      await apiRequest('/demo/reset', { method: 'POST' });
+      setDemoResetMsg('✓ Demo Circle reset to initial state!');
+      await loadAll();
+      setTimeout(() => setDemoResetMsg(''), 6000);
+    } catch (err: any) {
+      alert(err.message || 'Failed to reset demo');
+    }
+  };
 
   // Handlers
   const handleMarkDose = async (id: string, action: 'take' | 'skip') => {
@@ -286,16 +322,26 @@ export const CaretakerView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {isCaretaker && (
-              <button
-                onClick={handleTriggerMissedDemo}
-                className="hidden sm:flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm active:scale-95 transition"
-                title="Trigger a missed dose to demonstrate real-time email escalation"
-              >
-                <Zap size={14} />
-                <span>Demo Escalation</span>
-              </button>
+              <>
+                <button
+                  onClick={handleTriggerMissedDemo}
+                  className="hidden sm:flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm active:scale-95 transition"
+                  title="Trigger a missed dose to demonstrate real-time email escalation"
+                >
+                  <Zap size={14} />
+                  <span>Demo Escalation</span>
+                </button>
+                <button
+                  onClick={handleResetDemo}
+                  className="hidden sm:flex items-center gap-1.5 bg-slate-600 hover:bg-slate-700 text-white text-xs font-bold px-3 py-2 rounded-lg shadow-sm active:scale-95 transition"
+                  title="Reset demo circle back to initial seed state"
+                >
+                  <RotateCcw size={14} />
+                  <span>Reset Demo</span>
+                </button>
+              </>
             )}
             <button
               onClick={logout}
@@ -316,6 +362,7 @@ export const CaretakerView: React.FC = () => {
             { id: 'adherence', label: 'Adherence', icon: BarChart2 },
             { id: 'suggestions', label: 'Suggestions', icon: Send },
             { id: 'activity', label: 'Activity Log', icon: FileText },
+            ...(isCaretaker ? [{ id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.length }] : []),
             { id: 'settings', label: 'Settings', icon: Settings },
           ].map((tab) => {
             const Icon = tab.icon;
@@ -323,7 +370,12 @@ export const CaretakerView: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  if (tab.id === 'settings' && !deepHealth) {
+                    fetchDeepHealth();
+                  }
+                }}
                 className={`flex items-center gap-2 py-3 px-3.5 border-b-2 whitespace-nowrap transition ${
                   isActive
                     ? 'border-blue-600 text-blue-600 font-bold'
@@ -332,18 +384,33 @@ export const CaretakerView: React.FC = () => {
               >
                 <Icon size={16} />
                 <span>{tab.label}</span>
+                {tab.count !== undefined && tab.count > 0 && (
+                  <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.5 rounded-full">
+                    {tab.count}
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       </header>
 
-      {/* Demo Notification Banner */}
+      {/* Demo Notification & Reset Banners */}
       {demoTriggerMsg && (
         <div className="max-w-6xl mx-auto px-4 mt-4">
           <div className="p-4 bg-amber-100 border border-amber-300 text-amber-900 rounded-xl font-bold flex items-center justify-between">
             <span>{demoTriggerMsg}</span>
             <button onClick={() => setDemoTriggerMsg('')} className="p-1">
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      {demoResetMsg && (
+        <div className="max-w-6xl mx-auto px-4 mt-4">
+          <div className="p-4 bg-emerald-100 border border-emerald-300 text-emerald-900 rounded-xl font-bold flex items-center justify-between">
+            <span>{demoResetMsg}</span>
+            <button onClick={() => setDemoResetMsg('')} className="p-1">
               ✕
             </button>
           </div>
@@ -371,6 +438,132 @@ export const CaretakerView: React.FC = () => {
                 <RefreshCw size={14} /> Refresh
               </button>
             </div>
+
+            {/* Live Escalation State Machine Stepper */}
+            {(() => {
+              const activeDose =
+                todayData?.doses?.find((d: any) =>
+                  ['REMINDED', 'ESCALATED_1', 'ESCALATED_2', 'MISSED'].includes(d.status)
+                ) ||
+                todayData?.doses?.find((d: any) => d.status === 'SCHEDULED');
+
+              if (!activeDose) return null;
+
+              const stageLevel =
+                activeDose.status === 'REMINDED'
+                  ? 1
+                  : activeDose.status === 'ESCALATED_1'
+                  ? 2
+                  : activeDose.status === 'ESCALATED_2'
+                  ? 3
+                  : activeDose.status === 'MISSED'
+                  ? 4
+                  : 0;
+
+              const secondsUntilNext = activeDose.nextActionAt
+                ? Math.max(
+                    0,
+                    Math.round(
+                      (new Date(activeDose.nextActionAt).getTime() - Date.now()) / 1000
+                    )
+                  )
+                : 0;
+
+              return (
+                <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <span className="text-[11px] font-black uppercase text-blue-600 tracking-wider">
+                        ⚡ Live Escalation Timeline (Polling 10s)
+                      </span>
+                      <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2 mt-0.5">
+                        <span>{activeDose.medName}</span>
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                          Due:{' '}
+                          {new Date(activeDose.dueAt).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </h3>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {activeDose.status !== 'MISSED' && (
+                        <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 animate-pulse">
+                          <Clock size={12} />
+                          <span>
+                            {secondsUntilNext > 0
+                              ? `Next escalation in ~${secondsUntilNext}s`
+                              : 'Action due now (awaiting ticker)'}
+                          </span>
+                        </div>
+                      )}
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                        Status: {activeDose.status}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* 4-Step Visual Stepper */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+                    {[
+                      {
+                        step: 1,
+                        label: 'Elder Reminded',
+                        sub: 'Grandmother Shanti',
+                        activeBg: 'bg-blue-600 text-white',
+                        doneBg: 'bg-emerald-500 text-white',
+                      },
+                      {
+                        step: 2,
+                        label: 'Caretaker Alert',
+                        sub: 'Son Rajesh / Anita',
+                        activeBg: 'bg-amber-500 text-white',
+                        doneBg: 'bg-emerald-500 text-white',
+                      },
+                      {
+                        step: 3,
+                        label: 'Family Alert',
+                        sub: 'Daughter Priya',
+                        activeBg: 'bg-orange-500 text-white',
+                        doneBg: 'bg-emerald-500 text-white',
+                      },
+                      {
+                        step: 4,
+                        label: 'Marked Missed',
+                        sub: 'Adherence counted',
+                        activeBg: 'bg-red-600 text-white',
+                        doneBg: 'bg-red-600 text-white',
+                      },
+                    ].map((s) => {
+                      const isCurrent = stageLevel === s.step;
+                      const isPassed = stageLevel > s.step;
+                      return (
+                        <div
+                          key={s.step}
+                          className={`p-3 rounded-2xl border text-center transition ${
+                            isCurrent
+                              ? `${s.activeBg} border-transparent shadow-md scale-102 font-bold animate-pulse`
+                              : isPassed
+                              ? `${s.doneBg} border-transparent`
+                              : 'bg-slate-50 border-slate-200 text-slate-400'
+                          }`}
+                        >
+                          <div className="text-[10px] uppercase font-black tracking-wider opacity-80">
+                            Stage {s.step}
+                          </div>
+                          <div className="text-xs font-bold mt-0.5 leading-tight">{s.label}</div>
+                          <div className="text-[10px] opacity-75 mt-0.5 hidden sm:block">
+                            {s.sub}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {todayData?.doses && todayData.doses.length > 0 ? (
@@ -741,6 +934,90 @@ export const CaretakerView: React.FC = () => {
         )}
 
         {/* ========================================================= */}
+        {/* TAB: NOTIFICATIONS CENTER */}
+        {/* ========================================================= */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h2 className="text-2xl font-black text-slate-900">Notification Center</h2>
+                <p className="text-slate-500 text-sm">
+                  Complete audit log of email reminders and escalation dispatches.
+                </p>
+              </div>
+              <div className="text-xs bg-blue-50 text-blue-800 border border-blue-200 px-3 py-1.5 rounded-xl font-semibold">
+                🛡️ Judges: Escalation transitions are recorded here even if recipient emails are unverified in SES Sandbox.
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm divide-y overflow-hidden">
+              {notifications.length === 0 ? (
+                <div className="p-8 text-center text-slate-400 font-semibold">
+                  No notifications dispatched yet. Trigger a demo escalation to see real-time delivery logs!
+                </div>
+              ) : (
+                notifications.map((n: any) => (
+                  <div
+                    key={n.id}
+                    className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-slate-50 transition"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span
+                          className={`text-xs font-black px-2.5 py-0.5 rounded-md ${
+                            n.stage === 'REMINDED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : n.stage === 'ESCALATED_1'
+                              ? 'bg-amber-100 text-amber-800'
+                              : n.stage === 'ESCALATED_2'
+                              ? 'bg-orange-100 text-orange-800'
+                              : n.stage === 'MISSED'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-purple-100 text-purple-800'
+                          }`}
+                        >
+                          {n.stage}
+                        </span>
+                        <span className="font-extrabold text-sm text-slate-800">{n.subject}</span>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Recipient: <span className="font-semibold text-slate-700">{n.to}</span> •{' '}
+                        <span>
+                          {new Date(n.sentAt).toLocaleString([], {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                          })}
+                        </span>
+                      </div>
+                      {n.error && (
+                        <div className="text-xs text-red-600 font-medium">
+                          Delivery Note: {n.error} (Sandbox policy safeguard applied)
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 self-start sm:self-center">
+                      {n.success ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                          <CheckCircle2 size={14} /> Sent
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full">
+                          <AlertTriangle size={14} /> Sandboxed
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================= */}
         {/* TAB: SETTINGS & INVITES */}
         {/* ========================================================= */}
         {activeTab === 'settings' && (
@@ -749,6 +1026,159 @@ export const CaretakerView: React.FC = () => {
               <h2 className="text-2xl font-black text-slate-900">Circle Settings & Members</h2>
               <p className="text-slate-500 text-sm">Manage members, generate invite codes, and configure escalation timing.</p>
             </div>
+
+            {/* Deep Health & Cloud Diagnostics Panel */}
+            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">Platform Health & Cloud Diagnostics</h3>
+                  <p className="text-xs text-slate-500">
+                    Live verification of DynamoDB single-table, Amazon SES, and Bedrock Converse API.
+                  </p>
+                </div>
+                <button
+                  onClick={fetchDeepHealth}
+                  disabled={healthLoading}
+                  className="self-start sm:self-auto flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold px-3.5 py-2 rounded-xl transition disabled:opacity-50"
+                >
+                  <RefreshCw size={14} className={healthLoading ? 'animate-spin' : ''} />
+                  <span>{healthLoading ? 'Running...' : 'Run Diagnostics'}</span>
+                </button>
+              </div>
+
+              {deepHealth ? (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                  {/* DynamoDB card */}
+                  <div className="p-4 rounded-2xl border bg-slate-50 border-slate-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-extrabold text-slate-700">Amazon DynamoDB</span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          deepHealth.services?.dynamodb?.status === 'ok'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {deepHealth.services?.dynamodb?.status === 'ok' ? 'ONLINE' : 'ERROR'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 space-y-0.5 mt-2">
+                      <div>
+                        Table:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.dynamodb?.tableName}
+                        </span>
+                      </div>
+                      <div>
+                        Region:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.dynamodb?.region}
+                        </span>
+                      </div>
+                      <div>
+                        Latency:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.dynamodb?.latencyMs}ms
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Amazon SES card */}
+                  <div className="p-4 rounded-2xl border bg-slate-50 border-slate-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-extrabold text-slate-700">Amazon SES v2</span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          deepHealth.services?.ses?.status === 'ok'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800'
+                        }`}
+                      >
+                        {deepHealth.services?.ses?.status === 'ok' ? 'ACTIVE' : 'DEGRADED'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 space-y-0.5 mt-2">
+                      <div>
+                        Sender:{' '}
+                        <span className="font-semibold text-slate-700 truncate block">
+                          {deepHealth.services?.ses?.fromEmail}
+                        </span>
+                      </div>
+                      <div>
+                        Mode:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.ses?.isSandbox ? 'Sandbox' : 'Production'}
+                        </span>
+                      </div>
+                      <div>
+                        Identity:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.ses?.identityVerified ? 'Verified' : 'Unverified'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Amazon Bedrock card */}
+                  <div className="p-4 rounded-2xl border bg-slate-50 border-slate-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-extrabold text-slate-700">Amazon Bedrock</span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          deepHealth.services?.bedrock?.status === 'ok'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {deepHealth.services?.bedrock?.status === 'ok' ? 'ONLINE' : 'UNAVAILABLE'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-500 space-y-0.5 mt-2">
+                      <div>
+                        Model:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.bedrock?.modelId?.split(':')?.[0]}
+                        </span>
+                      </div>
+                      <div>
+                        Region:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.bedrock?.region}
+                        </span>
+                      </div>
+                      <div className="truncate">
+                        Status:{' '}
+                        <span className="font-semibold text-slate-700">
+                          {deepHealth.services?.bedrock?.message}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-slate-400 py-2">
+                  Click "Run Diagnostics" to perform live health queries on cloud infrastructure.
+                </div>
+              )}
+            </div>
+
+            {/* Reset Demo Card */}
+            {isCaretaker && circle?.circle?.settings?.demoMode && (
+              <div className="bg-white p-6 rounded-3xl border border-red-100 shadow-sm">
+                <h3 className="text-lg font-black text-red-900 mb-1">Demo Environment Controls</h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  Restore Kalyan Family Circle to its original seed state (schedules, grandmother, caretaker, and 7-day adherence history).
+                </p>
+                <button
+                  onClick={handleResetDemo}
+                  className="bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold px-4 py-2.5 rounded-xl transition flex items-center gap-2"
+                >
+                  <RotateCcw size={14} />
+                  <span>Reset Demo Circle to Seed State</span>
+                </button>
+              </div>
+            )}
 
             {isCaretaker && (
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">

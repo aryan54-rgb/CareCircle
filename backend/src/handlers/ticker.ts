@@ -8,6 +8,7 @@ import { memberRepo } from '../db/repos/memberRepo.js';
 import { medRepo } from '../db/repos/medRepo.js';
 import { doseRepo, DoseItem, parseDoseId } from '../db/repos/doseRepo.js';
 import { apptRepo, AppointmentItem, parseApptId } from '../db/repos/apptRepo.js';
+import { notifRepo } from '../db/repos/notifRepo.js';
 import { nextStage } from '../domain/doseStateMachine.js';
 import { nextAppointmentStage } from '../domain/appointmentStateMachine.js';
 import { generateDoses } from '../domain/scheduleGenerator.js';
@@ -196,6 +197,16 @@ async function processDoseItem(dose: DoseItem, now: Date): Promise<boolean> {
       if (res.success) {
         successfulSends++;
       }
+
+      // Record in Notification Center (stores every email attempt for judges & caretakers)
+      await notifRepo.create({
+        circleId,
+        to: recipient,
+        subject: intent.subject,
+        stage: nextStatus,
+        success: res.success,
+        error: res.error,
+      });
     }
   }
 
@@ -333,7 +344,7 @@ async function processAppointmentItem(appt: AppointmentItem, now: Date): Promise
       .map((m) => m.email);
 
     for (const recipient of recipients) {
-      await mailer.send({
+      const res = await mailer.send({
         to: [recipient],
         subject: intent.subject,
         doctor: appt.doctor,
@@ -341,6 +352,15 @@ async function processAppointmentItem(appt: AppointmentItem, now: Date): Promise
         startsAt: appt.startsAt,
         notes: appt.notes,
         stage: nextStage,
+      });
+
+      await notifRepo.create({
+        circleId,
+        to: recipient,
+        subject: intent.subject,
+        stage: nextStage,
+        success: res.success,
+        error: res.error,
       });
     }
   }

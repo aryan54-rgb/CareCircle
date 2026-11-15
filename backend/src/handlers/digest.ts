@@ -3,6 +3,7 @@ import { circleRepo } from '../db/repos/circleRepo.js';
 import { memberRepo } from '../db/repos/memberRepo.js';
 import { doseRepo } from '../db/repos/doseRepo.js';
 import { medRepo } from '../db/repos/medRepo.js';
+import { notifRepo } from '../db/repos/notifRepo.js';
 import { calculateAdherence } from '../domain/adherence.js';
 import { aiService } from '../services/ai.js';
 import { mailer } from '../services/mailer.js';
@@ -43,7 +44,7 @@ export async function runWeeklyDigest(now: Date = new Date()) {
         .map((m) => m.email);
 
       for (const recipient of recipients) {
-        await mailer.send({
+        const res = await mailer.send({
           to: [recipient],
           subject: `CareCircle Weekly Digest: ${circle.elderName} (${adherence.overallRate}% Adherence)`,
           stage: 'DIGEST',
@@ -57,6 +58,15 @@ export async function runWeeklyDigest(now: Date = new Date()) {
           },
         });
         sentEmails++;
+
+        await notifRepo.create({
+          circleId: circle.circleId,
+          to: recipient,
+          subject: `CareCircle Weekly Digest: ${circle.elderName}`,
+          stage: 'DIGEST',
+          success: res.success,
+          error: res.error,
+        });
       }
 
       await activityService.log({

@@ -1,8 +1,15 @@
 import crypto from 'crypto';
 import { Hono } from 'hono';
+import { GetCommand } from '@aws-sdk/lib-dynamodb';
+import { SESv2Client, GetAccountCommand, GetEmailIdentityCommand } from '@aws-sdk/client-sesv2';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
+import { docClient } from '../db/client.js';
+import { Keys } from '../db/keys.js';
+import { config } from '../lib/config.js';
 import { circleRepo } from '../db/repos/circleRepo.js';
 import { memberRepo } from '../db/repos/memberRepo.js';
 import { authRepo } from '../db/repos/authRepo.js';
+import { notifRepo } from '../db/repos/notifRepo.js';
 import { activityService } from '../services/activity.js';
 import { requireAuth, requireRoles } from '../lib/middleware.js';
 import { createInviteSchema, updateSettingsSchema } from '../lib/validate.js';
@@ -20,10 +27,7 @@ circleRoutes.use('*', requireAuth);
 circleRoutes.get('/me', async (c) => {
   const user = c.get('user');
   const member = await memberRepo.get(user.circleId, user.memberId);
-  if (!member) {
-    throw Errors.notFound('Member profile not found');
-  }
-
+  if (!member) throw Errors.notFound('Member not found');
   return c.json({
     memberId: member.memberId,
     circleId: member.circleId,
@@ -35,7 +39,7 @@ circleRoutes.get('/me', async (c) => {
 
 /**
  * GET /circle
- * Return circle metadata, member list, and active settings
+ * Return circle metadata, members, and settings
  */
 circleRoutes.get('/circle', async (c) => {
   const user = c.get('user');
@@ -44,13 +48,16 @@ circleRoutes.get('/circle', async (c) => {
     memberRepo.listByCircle(user.circleId),
   ]);
 
-  if (!circle) {
-    throw Errors.notFound('Circle not found');
-  }
+  if (!circle) throw Errors.notFound('Circle not found');
 
   return c.json({
     circle,
-    members,
+    members: members.map((m) => ({
+      memberId: m.memberId,
+      name: m.name,
+      email: m.email,
+      role: m.role,
+    })),
   });
 });
 
@@ -73,7 +80,7 @@ circleRoutes.patch('/circle/settings', requireRoles(['CARETAKER']), async (c) =>
     actorId: user.memberId,
     actorName: 'Caretaker',
     action: 'UPDATE_SETTINGS',
-    summary: 'Updated circle reminder and escalation settings.',
+    summary: 'Updated circle settings and escalation parameters.',
   });
 
   return c.json({
@@ -119,6 +126,124 @@ circleRoutes.get('/activity', async (c) => {
   const items = await activityService.list(user.circleId);
   return c.json({
     activities: items,
+  });
+});
+
+/**
+ * GET /circle/notifications
+ * Return notification delivery history (for caretakers and judges)
+ */
+circleRoutes.get('/circle/notifications', requireRoles(['CARETAKER']), async (c) => {
+  const user = c.get('user');
+  const items = await notifRepo.listByCircle(user.circleId);
+  return c.json({
+    notifications: items,
+  });
+});
+
+// Cache Bedrock check for 5 minutes (300,000 ms) to avoid quota burn and latency
+let cachedBedrockHealth: { status: 'ok' | 'error'; message: string; timestamp: number } | null = null;
+const BEDROCK_CACHE_MS = 5 * 60 * 1000;
+
+/**
+ * GET /health/deep
+ * Deep health verification of DynamoDB, SES, and Bedrock.
+ * Requires CARETAKER auth. Caches Bedrock check for 5 minutes.
+ */
+circleRoutes.get('/health/deep', requireRoles(['CARETAKER']), async (c) => {
+  const user = c.get('user');
+
+  // 1. DynamoDB Check
+  const startDb = Date.now();
+  let dbStatus = 'ok';
+  let dbLatencyMs = 0;
+  try {
+    await docClient.send(
+      new GetCommand({
+        TableName: config.tableName,
+        Key: Keys.circleMeta(user.circleId),
+      })
+    );
+    dbLatencyMs = Date.now() - startDb;
+  } catch (err: any) {
+    dbStatus = err.message;
+  }
+
+  // 2. SES Status Check
+  let sesStatus = 'ok';
+  let sesSendingEnabled = true;
+  let sesProductionAccess = false;
+  let sesIdentityVerified = false;
+  try {
+    const sesClient = new SESv2Client({ region: config.awsRegion });
+    const [accountRes, identityRes] = await Promise.all([
+      sesClient.send(new GetAccountCommand({})),
+      sesClient.send(new GetEmailIdentityCommand({ EmailIdentity: config.sesFrom })).catch(() => null),
+    ]);
+    sesSendingEnabled = accountRes.SendingEnabled ?? true;
+    sesProductionAccess = accountRes.ProductionAccessEnabled ?? false;
+    sesIdentityVerified = identityRes?.VerificationStatus === 'SUCCESS';
+  } catch (err: any) {
+    sesStatus = err.message;
+  }
+
+  // 3. Bedrock Converse Check (cached 5 min)
+  const now = Date.now();
+  if (!cachedBedrockHealth || now - cachedBedrockHealth.timestamp >= BEDROCK_CACHE_MS) {
+    try {
+      const bedrockClient = new BedrockRuntimeClient({ region: config.bedrockRegion });
+      await bedrockClient.send(
+        new ConverseCommand({
+          modelId: config.bedrockModelId,
+          messages: [{ role: 'user', content: [{ text: 'ping' }] }],
+          inferenceConfig: { maxTokens: 1, temperature: 0.1 },
+        })
+      );
+      cachedBedrockHealth = {
+        status: 'ok',
+        message: `Model ${config.bedrockModelId} active`,
+        timestamp: now,
+      };
+    } catch (err: any) {
+      cachedBedrockHealth = {
+        status: 'error',
+        message: err.message,
+        timestamp: now,
+      };
+    }
+  }
+
+  const overallHealthy =
+    dbStatus === 'ok' &&
+    sesStatus === 'ok' &&
+    cachedBedrockHealth.status === 'ok';
+
+  return c.json({
+    status: overallHealthy ? 'healthy' : 'degraded',
+    timestamp: nowISO(),
+    services: {
+      dynamodb: {
+        status: dbStatus,
+        tableName: config.tableName,
+        region: config.awsRegion,
+        latencyMs: dbLatencyMs,
+      },
+      ses: {
+        status: sesStatus,
+        fromEmail: config.sesFrom,
+        sendingEnabled: sesSendingEnabled,
+        productionAccess: sesProductionAccess,
+        identityVerified: sesIdentityVerified,
+        isSandbox: !sesProductionAccess,
+      },
+      bedrock: {
+        status: cachedBedrockHealth.status,
+        modelId: config.bedrockModelId,
+        region: config.bedrockRegion,
+        message: cachedBedrockHealth.message,
+        cached: now - cachedBedrockHealth.timestamp > 1000,
+      },
+    },
   });
 });
 

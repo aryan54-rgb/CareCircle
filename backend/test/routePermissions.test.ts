@@ -3,6 +3,49 @@ import { app } from '../src/handlers/api.js';
 import { signAuthToken } from '../src/services/tokens.js';
 import type { Role } from '../src/lib/validate.js';
 
+vi.mock('../src/db/repos/suggestionRepo.js', () => ({
+  suggestionRepo: {
+    create: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
+    listByCircle: vi.fn().mockResolvedValue([]),
+    updateStatus: vi.fn().mockResolvedValue({}),
+  },
+}));
+
+vi.mock('../src/db/repos/medRepo.js', () => ({
+  medRepo: {
+    create: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
+    listByCircle: vi.fn().mockResolvedValue([]),
+    update: vi.fn(),
+    delete: vi.fn(),
+  },
+}));
+
+vi.mock('../src/db/repos/circleRepo.js', () => ({
+  circleRepo: {
+    create: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
+    update: vi.fn(),
+  },
+}));
+
+vi.mock('../src/db/repos/memberRepo.js', () => ({
+  memberRepo: {
+    create: vi.fn(),
+    get: vi.fn().mockResolvedValue(null),
+    findByEmail: vi.fn().mockResolvedValue(null),
+    listByCircle: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock('../src/db/repos/notifRepo.js', () => ({
+  notifRepo: {
+    create: vi.fn(),
+    listByCircle: vi.fn().mockResolvedValue([]),
+  },
+}));
+
 describe('Route permission checks via app.request() (Task 6 & Rule 6)', () => {
   beforeEach(() => {
     vi.restoreAllMocks();

@@ -2,6 +2,7 @@ import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
 import nodemailer from 'nodemailer';
 import { config } from '../lib/config.js';
 import { escapeHtml } from '../lib/html.js';
+import { logger } from '../lib/logger.js';
 
 export interface SendMailOptions {
   to: string[];
@@ -185,11 +186,12 @@ class SESMailer implements MailerService {
           },
         })
       );
-      console.log(`[SES] Email sent to ${options.to.join(', ')}: ${res.MessageId}`);
+      logger.info(`[SES] Email sent to ${options.to.join(', ')}: ${res.MessageId}`);
       return { success: true, messageId: res.MessageId };
-    } catch (err: any) {
-      console.warn(`[SES] Send error for ${options.to.join(', ')}: ${err.message}. (May need verification in sandbox)`);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn(`[SES] Send error for ${options.to.join(', ')}: ${msg}. (May need verification in sandbox)`);
+      return { success: false, error: msg };
     }
   }
 }
@@ -216,7 +218,7 @@ class SMTPMailer implements MailerService {
 
   async send(options: SendMailOptions) {
     if (!this.transporter) {
-      console.warn('[SMTP] SMTP transport not configured, logging email instead.');
+      logger.warn('[SMTP] SMTP transport not configured, logging email instead.');
       return new LogMailer().send(options);
     }
 
@@ -227,11 +229,12 @@ class SMTPMailer implements MailerService {
         subject: options.subject,
         html: buildEmailHtml(options),
       });
-      console.log(`[SMTP] Email sent to ${options.to.join(', ')}: ${info.messageId}`);
+      logger.info(`[SMTP] Email sent to ${options.to.join(', ')}: ${info.messageId}`);
       return { success: true, messageId: info.messageId };
-    } catch (err: any) {
-      console.error('[SMTP] Send error:', err);
-      return { success: false, error: err.message };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error('[SMTP] Send error:', msg);
+      return { success: false, error: msg };
     }
   }
 }
@@ -241,15 +244,15 @@ class SMTPMailer implements MailerService {
  */
 class LogMailer implements MailerService {
   async send(options: SendMailOptions) {
-    console.log(`\n📧 [EMAIL MOCK] -----------------------------`);
-    console.log(`TO: ${options.to.join(', ')}`);
-    console.log(`SUBJECT: ${options.subject}`);
-    if (options.medName) console.log(`MEDICATION: ${options.medName} (${options.stage})`);
-    if (options.doctor) console.log(`APPOINTMENT: Dr. ${options.doctor} at ${options.place} (${options.stage})`);
-    if (options.digestSummary) console.log(`DIGEST: ${options.digestSummary}`);
-    if (options.takeUrl) console.log(`ONE-TAP TAKE: ${options.takeUrl}`);
-    if (options.skipUrl) console.log(`ONE-TAP SKIP: ${options.skipUrl}`);
-    console.log(`--------------------------------------------\n`);
+    logger.info(`\n📧 [EMAIL MOCK] -----------------------------`);
+    logger.info(`TO: ${options.to.join(', ')}`);
+    logger.info(`SUBJECT: ${options.subject}`);
+    if (options.medName) logger.info(`MEDICATION: ${options.medName} (${options.stage})`);
+    if (options.doctor) logger.info(`APPOINTMENT: Dr. ${options.doctor} at ${options.place} (${options.stage})`);
+    if (options.digestSummary) logger.info(`DIGEST: ${options.digestSummary}`);
+    if (options.takeUrl) logger.info(`ONE-TAP TAKE: ${options.takeUrl}`);
+    if (options.skipUrl) logger.info(`ONE-TAP SKIP: ${options.skipUrl}`);
+    logger.info(`--------------------------------------------\n`);
     return { success: true, messageId: `mock-${Date.now()}` };
   }
 }

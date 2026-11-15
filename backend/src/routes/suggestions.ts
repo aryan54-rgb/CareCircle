@@ -89,9 +89,24 @@ suggestionsRoutes.post('/:id/approve', requirePermission('DECIDE_SUGGESTION'), a
   ]);
   const actorName = member?.name || user.role;
 
+  interface SuggestionPayload {
+    name?: string;
+    strength?: string;
+    form?: string;
+    instructions?: string;
+    times?: string[];
+    daysOfWeek?: number[];
+    startDate?: string;
+    pillCount?: number;
+    doctor?: string;
+    place?: string;
+    notes?: string;
+    startsAt?: string;
+  }
+
   // Execute the suggested action
   if (item.type === 'NEW_MED') {
-    const p = item.payload;
+    const p = (item.payload || {}) as SuggestionPayload;
     const medId = crypto.randomUUID();
     const med = await medRepo.create({
       medId,
@@ -124,7 +139,7 @@ suggestionsRoutes.post('/:id/approve', requirePermission('DECIDE_SUGGESTION'), a
     );
     await doseRepo.batchCreate(doses);
   } else if (item.type === 'APPOINTMENT') {
-    const p = item.payload;
+    const p = (item.payload || {}) as SuggestionPayload;
     await apptRepo.create({
       circleId: user.circleId,
       doctor: p.doctor || 'Doctor',

@@ -5,6 +5,7 @@ import {
 import { z } from 'zod';
 import { config } from '../lib/config.js';
 import { Errors } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 
 export const prescriptionExtractSchema = z.object({
   name: z.string().min(1),
@@ -82,14 +83,15 @@ If multiple times per day are mentioned (e.g. twice daily), specify reasonable s
       );
 
       const textOutput = res.output?.message?.content?.[0]?.text || '';
-      console.log('[Bedrock] Raw Converse output:', textOutput);
+      logger.info(`[Bedrock] Raw Converse output: ${textOutput}`);
 
       // Strip potential markdown fences
       const cleanJson = textOutput.replace(/```(?:json)?/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleanJson);
       return prescriptionExtractSchema.parse(parsed);
-    } catch (err: any) {
-      console.warn('[Bedrock] Bedrock call failed or model unavailable:', err.message);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn(`[Bedrock] Bedrock call failed or model unavailable: ${msg}`);
       throw Errors.serviceUnavailable(
         'Scan unavailable, enter manually: Bedrock AI model could not be reached.'
       );

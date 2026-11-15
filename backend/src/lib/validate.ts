@@ -67,7 +67,7 @@ export const updateAppointmentSchema = createAppointmentSchema.partial();
 export const createSuggestionSchema = z.object({
   type: z.enum(['NEW_MED', 'CHANGE_MED', 'APPOINTMENT']),
   title: z.string().min(3).max(150),
-  payload: z.record(z.any()),
+  payload: z.record(z.unknown()),
 });
 
 export const decideSuggestionSchema = z.object({

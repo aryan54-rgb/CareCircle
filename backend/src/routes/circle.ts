@@ -165,8 +165,8 @@ circleRoutes.get('/health/deep', requireRoles(['CARETAKER']), async (c) => {
       })
     );
     dbLatencyMs = Date.now() - startDb;
-  } catch (err: any) {
-    dbStatus = err.message;
+  } catch (err: unknown) {
+    dbStatus = err instanceof Error ? err.message : String(err);
   }
 
   // 2. SES Status Check
@@ -183,8 +183,8 @@ circleRoutes.get('/health/deep', requireRoles(['CARETAKER']), async (c) => {
     sesSendingEnabled = accountRes.SendingEnabled ?? true;
     sesProductionAccess = accountRes.ProductionAccessEnabled ?? false;
     sesIdentityVerified = identityRes?.VerificationStatus === 'SUCCESS';
-  } catch (err: any) {
-    sesStatus = err.message;
+  } catch (err: unknown) {
+    sesStatus = err instanceof Error ? err.message : String(err);
   }
 
   // 3. Bedrock Converse Check (cached 5 min)
@@ -204,10 +204,10 @@ circleRoutes.get('/health/deep', requireRoles(['CARETAKER']), async (c) => {
         message: `Model ${config.bedrockModelId} active`,
         timestamp: now,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       cachedBedrockHealth = {
         status: 'error',
-        message: err.message,
+        message: err instanceof Error ? err.message : String(err),
         timestamp: now,
       };
     }

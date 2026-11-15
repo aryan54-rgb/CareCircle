@@ -24,7 +24,7 @@ export const requireAuth: MiddlewareHandler = async (c, next) => {
     const claims = await verifyAuthToken(token);
     c.set('user', claims);
     await next();
-  } catch (err: any) {
+  } catch (_err: unknown) {
     throw Errors.unauthorized('Invalid or expired token');
   }
 };

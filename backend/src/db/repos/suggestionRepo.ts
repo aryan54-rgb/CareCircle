@@ -18,7 +18,7 @@ export interface SuggestionItem {
   circleId: string;
   type: SuggestionType;
   title: string;
-  payload: Record<string, any>;
+  payload: Record<string, unknown>;
   proposedBy: string;
   proposedByName: string;
   proposedByRole: Role;
@@ -35,7 +35,7 @@ export const suggestionRepo = {
     circleId: string;
     type: SuggestionType;
     title: string;
-    payload: Record<string, any>;
+    payload: Record<string, unknown>;
     proposedBy: string;
     proposedByName: string;
     proposedByRole: Role;

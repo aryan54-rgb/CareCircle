@@ -1,4 +1,5 @@
 import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm';
+import { logger } from './logger.js';
 
 let cachedJwtSecret: string | null = null;
 
@@ -34,9 +35,10 @@ export const config = {
         return cachedJwtSecret;
       }
       throw new Error(`SSM parameter ${this.jwtParamName} returned empty value`);
-    } catch (err: any) {
-      console.error(`[Config] Failed to fetch JWT secret from SSM parameter "${this.jwtParamName}":`, err.message);
-      throw new Error(`JWT secret unavailable: could not load SSM parameter "${this.jwtParamName}" (${err.message})`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error(`[Config] Failed to fetch JWT secret from SSM parameter "${this.jwtParamName}":`, msg);
+      throw new Error(`JWT secret unavailable: could not load SSM parameter "${this.jwtParamName}" (${msg})`);
     }
   },
 };

@@ -110,14 +110,14 @@ export const circleRepo = {
       })
     );
     return (res.Items || [])
-      .filter((item: any) => typeof item.circleId === 'string')
-      .map((item: any) => ({
-        circleId: item.circleId,
-        name: item.name,
-        elderName: item.elderName,
-        timezone: item.timezone || 'Asia/Kolkata',
-        settings: item.settings || DEFAULT_CIRCLE_SETTINGS,
-        createdAt: item.createdAt,
+      .filter((item: Record<string, unknown>) => typeof item.circleId === 'string')
+      .map((item: Record<string, unknown>) => ({
+        circleId: item.circleId as string,
+        name: item.name as string,
+        elderName: item.elderName as string,
+        timezone: (item.timezone as string) || 'Asia/Kolkata',
+        settings: (item.settings as CircleSettings) || DEFAULT_CIRCLE_SETTINGS,
+        createdAt: item.createdAt as string,
       }));
   },
 };

@@ -12,7 +12,7 @@ export interface NotificationItem {
   success: boolean;
   error?: string;
   sentAt: string; // UTC ISO
-  ttl: number; // epoch seconds (7 days retention)
+  ttl?: number; // epoch seconds (7 days retention)
 }
 
 export const notifRepo = {
@@ -75,16 +75,16 @@ export const notifRepo = {
       })
     );
 
-    return (res.Items || []).map((i: any) => ({
-      id: i.id,
-      circleId: i.circleId,
-      to: i.to,
-      subject: i.subject,
-      stage: i.stage,
-      success: i.success,
-      error: i.error,
-      sentAt: i.sentAt,
-      ttl: i.ttl,
+    return (res.Items || []).map((i: Record<string, unknown>) => ({
+      id: i.id as string,
+      circleId: i.circleId as string,
+      to: i.to as string,
+      subject: i.subject as string,
+      stage: i.stage as string,
+      success: Boolean(i.success),
+      error: i.error as string | undefined,
+      sentAt: i.sentAt as string,
+      ttl: i.ttl as number | undefined,
     }));
   },
 };

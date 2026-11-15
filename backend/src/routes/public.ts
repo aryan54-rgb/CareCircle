@@ -56,7 +56,7 @@ publicRoutes.get('/confirm', async (c) => {
       token,
       buttonText,
       medName: dose.medName,
-    });
+    }).replace(/</g, '\\u003c');
 
     return c.html(`
       <!DOCTYPE html>
@@ -213,7 +213,7 @@ publicRoutes.get('/confirm', async (c) => {
       </body>
       </html>
     `);
-  } catch (err: any) {
+  } catch (_err: unknown) {
     return c.html(renderErrorPage('Link Expired or Invalid', 'This one-tap confirmation link has expired or is invalid.'));
   }
 });

@@ -6,7 +6,7 @@ export interface ApiError {
   message: string;
 }
 
-export async function apiRequest<T = any>(
+export async function apiRequest<T = unknown>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {

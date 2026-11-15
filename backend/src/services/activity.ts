@@ -4,6 +4,7 @@ import { docClient } from '../db/client.js';
 import { Keys } from '../db/keys.js';
 import { config } from '../lib/config.js';
 import { nowISO } from '../lib/time.js';
+import { logger } from '../lib/logger.js';
 
 export interface ActivityItem {
   id: string;
@@ -45,8 +46,8 @@ export const activityService = {
           },
         })
       );
-    } catch (err) {
-      console.error('Failed to log activity:', err);
+    } catch (err: unknown) {
+      logger.error('Failed to log activity:', err);
     }
 
     return item;

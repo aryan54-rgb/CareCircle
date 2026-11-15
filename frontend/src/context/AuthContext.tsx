@@ -1,45 +1,17 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../api/client';
-
-export type Role = 'ELDER' | 'CARETAKER' | 'FAMILY';
-
-export interface UserProfile {
-  memberId: string;
-  circleId: string;
-  name: string;
-  email: string;
-  role: Role;
-}
-
-interface AuthContextType {
-  user: UserProfile | null;
-  token: string | null;
-  loading: boolean;
-  login: (email: string, passcode: string) => Promise<void>;
-  join: (inviteCode: string, name: string, email: string, passcode: string) => Promise<void>;
-  createCircle: (data: {
-    name: string;
-    elderName: string;
-    caretakerName: string;
-    caretakerEmail: string;
-    caretakerPasscode: string;
-  }) => Promise<void>;
-  logout: () => void;
-  refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+import type { UserProfile } from '../types';
+import type { CreateCircleData } from './authContextDef';
+import { AuthContext } from './authContextDef';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('carecircle_token'));
-  const [loading, setLoading] = useState<boolean>(true);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem('carecircle_token'));
+  const [loading, setLoading] = useState<boolean>(() => Boolean(localStorage.getItem('carecircle_token')));
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     try {
-      const data = await apiRequest<{ memberId: string; circleId: string; name: string; email: string; role: Role }>(
-        '/me'
-      );
+      const data = await apiRequest<UserProfile>('/me');
       setUser(data);
     } catch {
       localStorage.removeItem('carecircle_token');
@@ -48,14 +20,35 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    if (token) {
-      refreshProfile();
-    } else {
-      setLoading(false);
+    let ignore = false;
+    async function loadUser() {
+      try {
+        const data = await apiRequest<UserProfile>('/me');
+        if (!ignore) {
+          setUser(data);
+        }
+      } catch {
+        if (!ignore) {
+          localStorage.removeItem('carecircle_token');
+          setToken(null);
+          setUser(null);
+        }
+      } finally {
+        if (!ignore) {
+          setLoading(false);
+        }
+      }
     }
+
+    if (token) {
+      void loadUser();
+    }
+    return () => {
+      ignore = true;
+    };
   }, [token]);
 
   const login = async (email: string, passcode: string) => {
@@ -78,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.member);
   };
 
-  const createCircle = async (data: any) => {
+  const createCircle = async (data: CreateCircleData) => {
     const res = await apiRequest<{ token: string; member: UserProfile }>('/auth/circles', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -111,9 +104,3 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     </AuthContext.Provider>
   );
 };
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within an AuthProvider');
-  return context;
-}

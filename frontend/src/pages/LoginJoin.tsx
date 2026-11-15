@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/useAuth';
 import { Heart } from 'lucide-react';
 
 export const LoginJoin: React.FC = () => {
@@ -32,8 +32,9 @@ export const LoginJoin: React.FC = () => {
     setErrorMsg('');
     try {
       await login(email, passcode);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Login failed. Please check credentials.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg || 'Login failed. Please check credentials.');
     } finally {
       setLoading(false);
     }
@@ -44,8 +45,9 @@ export const LoginJoin: React.FC = () => {
     setErrorMsg('');
     try {
       await login(demoEmail, demoPass);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Quick login failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg || 'Quick login failed');
     } finally {
       setLoading(false);
     }
@@ -57,8 +59,9 @@ export const LoginJoin: React.FC = () => {
     setErrorMsg('');
     try {
       await join(inviteCode, joinName, joinEmail, joinPasscode);
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to join circle. Check your invite code.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg || 'Failed to join circle. Check your invite code.');
     } finally {
       setLoading(false);
     }
@@ -76,8 +79,9 @@ export const LoginJoin: React.FC = () => {
         caretakerEmail,
         caretakerPasscode,
       });
-    } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to create care circle.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setErrorMsg(msg || 'Failed to create care circle.');
     } finally {
       setLoading(false);
     }

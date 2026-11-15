@@ -4,7 +4,9 @@
   "description": "CareCircle - Elderly Care & Medication Management Platform",
   "scripts": {
     "seed": "npx tsx scripts/seed.ts",
-    "test": "cd backend && npm test",
+    "test": "npm test --prefix backend && npm test --prefix frontend",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
     "build:backend": "cd backend && npm run build",
     "dev": "cd frontend && npm run dev",
     "build": "cd frontend && npm install && npm run build"

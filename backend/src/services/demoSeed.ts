@@ -9,6 +9,7 @@ import { suggestionRepo } from '../db/repos/suggestionRepo.js';
 import { activityService } from './activity.js';
 import { generateDoses } from '../domain/scheduleGenerator.js';
 import { addDays, formatDateInTimezone, timeStringToUTC } from '../lib/time.js';
+import { logger } from '../lib/logger.js';
 
 export interface SeedOptions {
   elderEmail?: string;
@@ -27,7 +28,7 @@ export async function seedDemoCircle(options: SeedOptions = {}) {
   const caretakerEmail = options.caretakerEmail || process.env.CARETAKER_EMAIL || 'rajesh@demo.com';
   const familyEmail = options.familyEmail || process.env.FAMILY_EMAIL || 'priya@demo.com';
 
-  console.log(`[DemoSeed] Seeding demo-circle (${elderEmail}, ${caretakerEmail}, ${familyEmail})...`);
+  logger.info(`[DemoSeed] Seeding demo-circle (${elderEmail}, ${caretakerEmail}, ${familyEmail})...`);
 
   // 1. Create Demo Circle
   await circleRepo.create({

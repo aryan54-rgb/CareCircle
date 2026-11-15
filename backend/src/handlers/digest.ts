@@ -9,6 +9,7 @@ import { aiService } from '../services/ai.js';
 import { mailer } from '../services/mailer.js';
 import { activityService } from '../services/activity.js';
 import { addDays, nowISO } from '../lib/time.js';
+import { logger } from '../lib/logger.js';
 
 /**
  * Weekly adherence digest execution (runs per circle, computes adherence, generates AI summary, emails caretakers & family)
@@ -76,8 +77,8 @@ export async function runWeeklyDigest(now: Date = new Date()) {
         action: 'WEEKLY_DIGEST_SENT',
         summary: `Weekly adherence digest delivered to ${recipients.length} circle members. Overall score: ${adherence.overallRate}%.`,
       });
-    } catch (circleErr) {
-      console.error(`[Digest] Error processing circle ${circle.circleId}:`, circleErr);
+    } catch (circleErr: unknown) {
+      logger.error(`[Digest] Error processing circle ${circle.circleId}:`, circleErr);
     }
   }
 
@@ -90,7 +91,7 @@ export async function runWeeklyDigest(now: Date = new Date()) {
 }
 
 export async function handler(event: ScheduledEvent, context?: Context) {
-  console.log('[Digest] Weekly adherence digest job started:', JSON.stringify(event));
+  logger.info(`[Digest] Weekly adherence digest job started: ${JSON.stringify(event)}`);
   const res = await runWeeklyDigest(new Date());
   return res;
 }

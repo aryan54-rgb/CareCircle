@@ -35,6 +35,7 @@ export interface DoseItem {
   skippedBy?: string;
   GSI1PK?: 'OPEN';
   GSI1SK?: string;
+  retryCount?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -150,8 +151,8 @@ export const doseRepo = {
         })
       );
       return true;
-    } catch (err: any) {
-      if (err.name === 'ConditionalCheckFailedException') {
+    } catch (err: unknown) {
+      if (typeof err === 'object' && err !== null && 'name' in err && (err as { name: string }).name === 'ConditionalCheckFailedException') {
         return false;
       }
       throw err;

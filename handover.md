@@ -119,10 +119,10 @@ npm run dev
 npm run seed
 
 # Run live AWS integration tests
-npx tsx scripts/test-phase1.ts
-npx tsx scripts/test-phase2.ts
-npx tsx scripts/test-phase3.ts
-npx tsx scripts/test-phase4-7.ts
+npx tsx scripts/e2e/test-phase1.ts
+npx tsx scripts/e2e/test-phase2.ts
+npx tsx scripts/e2e/test-phase3.ts
+npx tsx scripts/e2e/test-phase4-7.ts
 ```
 
 ---

@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import { handle } from 'hono/aws-lambda';
 import { cors } from 'hono/cors';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { AppError } from '../lib/errors.js';
+import { logger } from '../lib/logger.js';
 import { nowISO } from '../lib/time.js';
 import { authRoutes } from '../routes/auth.js';
 import { circleRoutes } from '../routes/circle.js';
@@ -20,7 +22,7 @@ app.use('*', cors());
 
 // Global error handler: always returns { error: { code, message } }
 app.onError((err, c) => {
-  console.error('Unhandled request error:', err);
+  logger.error('Unhandled request error:', err);
 
   if (err instanceof AppError) {
     return c.json(
@@ -30,7 +32,7 @@ app.onError((err, c) => {
           message: err.message,
         },
       },
-      err.statusCode as any
+      err.statusCode as ContentfulStatusCode
     );
   }
 

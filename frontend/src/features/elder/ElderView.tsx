@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../context/AuthContext';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useAuth } from '../../context/useAuth';
 import { apiRequest } from '../../api/client';
 import { speakText } from '../../lib/speech';
 import { elderI18n, type ElderLanguage } from './translations';
 import { Volume2, Check, X, Calendar, MessageSquare, Sun, Clock, LogOut, Globe } from 'lucide-react';
+import type { TodayDosesResponse, Appointment, Suggestion } from '../../types';
+import { usePolling } from '../caretaker/hooks/usePolling';
 
 export const ElderView: React.FC = () => {
   const { user, logout } = useAuth();
@@ -11,34 +13,40 @@ export const ElderView: React.FC = () => {
   const t = elderI18n[lang];
 
   const [activeTab, setActiveTab] = useState<'today' | 'appointments' | 'suggestions'>('today');
-  const [todayData, setTodayData] = useState<{ heroDose: any; doses: any[] } | null>(null);
-  const [appointments, setAppointments] = useState<any[]>([]);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [, setLoading] = useState<boolean>(true);
+  const [todayData, setTodayData] = useState<TodayDosesResponse | null>(null);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [actionMessage, setActionMessage] = useState<string>('');
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [dosesRes, apptsRes, suggsRes] = await Promise.all([
-        apiRequest('/doses'),
-        apiRequest('/appointments'),
-        apiRequest('/suggestions'),
+        apiRequest<TodayDosesResponse>('/doses'),
+        apiRequest<{ appointments: Appointment[] }>('/appointments'),
+        apiRequest<{ suggestions: Suggestion[] }>('/suggestions'),
       ]);
       setTodayData(dosesRes);
       setAppointments(apptsRes.appointments || []);
       setSuggestions(suggsRes.suggestions || []);
-    } catch (err) {
-      console.error('Failed to load elder view data:', err);
-    } finally {
-      setLoading(false);
+    } catch {
+      // Background load failed, keep existing state
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 20000); // refresh every 20s
-    return () => clearInterval(interval);
-  }, []);
+    let ignore = false;
+    const init = async () => {
+      if (!ignore) {
+        await loadData();
+      }
+    };
+    void init();
+    return () => {
+      ignore = true;
+    };
+  }, [loadData]);
+
+  usePolling(loadData, 20000);
 
   const handleTakeDose = async (doseId: string, medName: string) => {
     try {
@@ -47,8 +55,9 @@ export const ElderView: React.FC = () => {
       speakText(`${t.confirmTakenVoice}: ${medName}.`, t.langCode);
       await loadData();
       setTimeout(() => setActionMessage(''), 5000);
-    } catch (err: any) {
-      alert(err.message || 'Could not record dose.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || 'Could not record dose.');
     }
   };
 
@@ -60,8 +69,9 @@ export const ElderView: React.FC = () => {
       speakText(`${t.confirmSkippedVoice}: ${medName}.`, t.langCode);
       await loadData();
       setTimeout(() => setActionMessage(''), 5000);
-    } catch (err: any) {
-      alert(err.message || 'Could not skip dose.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || 'Could not skip dose.');
     }
   };
 
@@ -72,8 +82,9 @@ export const ElderView: React.FC = () => {
       speakText(`${t.approvedVoice}: ${title}.`, t.langCode);
       await loadData();
       setTimeout(() => setActionMessage(''), 5000);
-    } catch (err: any) {
-      alert(err.message || 'Failed to approve.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || 'Failed to approve.');
     }
   };
 
@@ -84,8 +95,9 @@ export const ElderView: React.FC = () => {
       speakText(`${t.declinedVoice}: ${title}.`, t.langCode);
       await loadData();
       setTimeout(() => setActionMessage(''), 5000);
-    } catch (err: any) {
-      alert(err.message || 'Failed to decline.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      alert(msg || 'Failed to decline.');
     }
   };
 
@@ -199,7 +211,7 @@ export const ElderView: React.FC = () => {
                 <div className="flex flex-col sm:flex-row gap-4">
                   <button
                     onClick={() =>
-                      handleTakeDose(todayData.heroDose.id, todayData.heroDose.medName)
+                      handleTakeDose(todayData.heroDose!.id, todayData.heroDose!.medName)
                     }
                     className="flex-1 min-h-[68px] bg-emerald-600 hover:bg-emerald-700 text-white text-2xl font-black py-4 px-6 rounded-2xl shadow-lg flex items-center justify-center gap-3 active:scale-98 transition focus:ring-4 focus:ring-emerald-400"
                   >
@@ -208,7 +220,7 @@ export const ElderView: React.FC = () => {
                   </button>
                   <button
                     onClick={() =>
-                      handleSkipDose(todayData.heroDose.id, todayData.heroDose.medName)
+                      handleSkipDose(todayData.heroDose!.id, todayData.heroDose!.medName)
                     }
                     className="min-h-[68px] bg-slate-200 hover:bg-slate-300 text-slate-700 text-xl font-bold py-4 px-6 rounded-2xl active:scale-98 transition focus:ring-4 focus:ring-slate-400"
                   >
@@ -358,7 +370,9 @@ export const ElderView: React.FC = () => {
                       </div>
                       <div className="text-3xl font-black text-slate-900 mb-4">{s.title}</div>
                       <p className="text-xl text-slate-600 mb-6">
-                        {s.payload?.instructions || 'Would you like to add this to your schedule?'}
+                        {typeof s.payload?.instructions === 'string'
+                          ? s.payload.instructions
+                          : 'Would you like to add this to your schedule?'}
                       </p>
 
                       <div className="flex flex-col sm:flex-row gap-4">

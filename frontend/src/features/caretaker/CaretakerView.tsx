@@ -86,6 +86,7 @@ export const CaretakerView: React.FC = () => {
   const [scanLoading, setScanLoading] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<any>(null);
   const [scanError, setScanError] = useState<string>('');
+  const [confirmedConfidence, setConfirmedConfidence] = useState<boolean>(false);
 
   const loadAll = async () => {
     try {
@@ -172,6 +173,8 @@ export const CaretakerView: React.FC = () => {
         }),
       });
       setShowAddMedModal(false);
+      setScanResult(null);
+      setConfirmedConfidence(false);
       await loadAll();
     } catch (err: any) {
       alert(err.message || 'Failed to add medication');
@@ -302,6 +305,35 @@ export const CaretakerView: React.FC = () => {
 
   const isCaretaker = user?.role === 'CARETAKER';
 
+  // Peace of Mind calculation (Requirement #12)
+  const pendingDoses = (todayData?.doses || []).filter((d: any) =>
+    ['REMINDED', 'ESCALATED_1', 'ESCALATED_2'].includes(d.status)
+  );
+  const missedDoses = (todayData?.doses || []).filter((d: any) => d.status === 'MISSED');
+  const careScore =
+    adherence?.overallRate !== undefined ? Math.round(adherence.overallRate * 100) : 100;
+
+  let peaceBanner = {
+    status: 'good',
+    text: 'All doses on track today',
+    sub: 'No missed medications or pending escalations.',
+  };
+
+  if (missedDoses.length > 0) {
+    peaceBanner = {
+      status: 'danger',
+      text: `${missedDoses.length} dose${missedDoses.length > 1 ? 's' : ''} MISSED today (${missedDoses.map((d: any) => d.medName).join(', ')})`,
+      sub: 'Escalation complete. Immediate caretaker attention required.',
+    };
+  } else if (pendingDoses.length > 0) {
+    const earliest = pendingDoses[0];
+    peaceBanner = {
+      status: 'warning',
+      text: `${pendingDoses.length} dose pending since ${earliest.scheduledTime} (${earliest.medName})`,
+      sub: `Current stage: ${earliest.status.replace('_', ' ')}. Escalation in progress.`,
+    };
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
       {/* Top Navbar */}
@@ -419,6 +451,44 @@ export const CaretakerView: React.FC = () => {
 
       {/* Main Tab Views */}
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* Peace of Mind Banner (Requirement #12) */}
+        <div
+          className={`p-4 rounded-2xl border mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs transition ${
+            peaceBanner.status === 'danger'
+              ? 'bg-red-50 border-red-200 text-red-950'
+              : peaceBanner.status === 'warning'
+              ? 'bg-amber-50 border-amber-200 text-amber-950'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-950'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                peaceBanner.status === 'danger'
+                  ? 'bg-red-600 text-white'
+                  : peaceBanner.status === 'warning'
+                  ? 'bg-amber-500 text-white'
+                  : 'bg-emerald-600 text-white'
+              }`}
+            >
+              {peaceBanner.status === 'danger' ? (
+                <AlertTriangle size={20} />
+              ) : peaceBanner.status === 'warning' ? (
+                <Clock size={20} />
+              ) : (
+                <CheckCircle2 size={20} />
+              )}
+            </div>
+            <div>
+              <div className="text-base font-extrabold tracking-tight">{peaceBanner.text}</div>
+              <div className="text-xs opacity-80 font-medium">{peaceBanner.sub}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto bg-white/90 px-3.5 py-1.5 rounded-xl border border-black/5 shadow-2xs">
+            <span className="text-xs text-slate-500 font-semibold">Weekly Care Score:</span>
+            <span className="text-sm font-black text-blue-600">{careScore}%</span>
+          </div>
+        </div>
         {/* ========================================================= */}
         {/* TAB: TODAY VIEW */}
         {/* ========================================================= */}
@@ -1241,52 +1311,99 @@ export const CaretakerView: React.FC = () => {
       {showAddMedModal && (
         <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl">
-            <h3 className="text-2xl font-black text-slate-900 mb-4">Add Medication</h3>
+            <h3 className="text-2xl font-black text-slate-900 mb-2">Add Medication</h3>
+            {scanResult ? (
+              <div className="mb-4 p-3.5 bg-amber-50 border border-amber-300 rounded-2xl text-amber-950 text-xs flex items-start gap-2.5">
+                <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-extrabold text-amber-900">
+                    AI-Assisted Scan Review (Confidence: {Math.round((scanResult.extracted?.confidence ?? 0.8) * 100)}%)
+                  </div>
+                  <div className="text-amber-800 mt-0.5">
+                    Fields below were drafted by Bedrock AI. Check each field carefully against the physical bottle before saving.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500 mb-4">
+                Enter schedule details to automatically project doses for the next 7 days.
+              </p>
+            )}
+
             <form onSubmit={handleCreateMed} className="space-y-4">
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Medication Name</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-slate-700">Medication Name</label>
+                  {scanResult && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                      AI Extracted
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
                   value={newMed.name}
                   onChange={(e) => setNewMed({ ...newMed, name: e.target.value })}
                   placeholder="e.g. Metformin"
-                  className="w-full border p-2.5 rounded-xl text-sm"
+                  className={`w-full border p-2.5 rounded-xl text-sm transition ${
+                    scanResult ? 'border-amber-400 bg-amber-50/20' : 'border-slate-300'
+                  }`}
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Strength</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-slate-700">Strength</label>
+                    {scanResult && (
+                      <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-md">
+                        Check
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     required
                     value={newMed.strength}
                     onChange={(e) => setNewMed({ ...newMed, strength: e.target.value })}
                     placeholder="e.g. 500mg"
-                    className="w-full border p-2.5 rounded-xl text-sm"
+                    className={`w-full border p-2.5 rounded-xl text-sm transition ${
+                      scanResult ? 'border-amber-400 bg-amber-50/20' : 'border-slate-300'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-slate-700 block mb-1">Form</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-xs font-bold text-slate-700">Form</label>
+                  </div>
                   <input
                     type="text"
                     required
                     value={newMed.form}
                     onChange={(e) => setNewMed({ ...newMed, form: e.target.value })}
                     placeholder="tablet, capsule"
-                    className="w-full border p-2.5 rounded-xl text-sm"
+                    className="w-full border border-slate-300 p-2.5 rounded-xl text-sm"
                   />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1">Daily Times (comma-separated)</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-xs font-bold text-slate-700">Daily Times (comma-separated)</label>
+                  {scanResult && (
+                    <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                      Verify
+                    </span>
+                  )}
+                </div>
                 <input
                   type="text"
                   required
                   value={newMed.times}
                   onChange={(e) => setNewMed({ ...newMed, times: e.target.value })}
                   placeholder="09:00, 21:00"
-                  className="w-full border p-2.5 rounded-xl text-sm"
+                  className={`w-full border p-2.5 rounded-xl text-sm transition ${
+                    scanResult ? 'border-amber-400 bg-amber-50/20' : 'border-slate-300'
+                  }`}
                 />
               </div>
               <div>
@@ -1296,7 +1413,7 @@ export const CaretakerView: React.FC = () => {
                   value={newMed.instructions}
                   onChange={(e) => setNewMed({ ...newMed, instructions: e.target.value })}
                   placeholder="Take after meals with water"
-                  className="w-full border p-2.5 rounded-xl text-sm"
+                  className="w-full border border-slate-300 p-2.5 rounded-xl text-sm"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -1306,7 +1423,7 @@ export const CaretakerView: React.FC = () => {
                     type="number"
                     value={newMed.pillCount}
                     onChange={(e) => setNewMed({ ...newMed, pillCount: Number(e.target.value) })}
-                    className="w-full border p-2.5 rounded-xl text-sm"
+                    className="w-full border border-slate-300 p-2.5 rounded-xl text-sm"
                   />
                 </div>
                 <div>
@@ -1315,21 +1432,42 @@ export const CaretakerView: React.FC = () => {
                     type="number"
                     value={newMed.refillThreshold}
                     onChange={(e) => setNewMed({ ...newMed, refillThreshold: Number(e.target.value) })}
-                    className="w-full border p-2.5 rounded-xl text-sm"
+                    className="w-full border border-slate-300 p-2.5 rounded-xl text-sm"
                   />
                 </div>
               </div>
+
+              {/* Confidence Verification Checkbox for Scans (Requirement #15) */}
+              {scanResult && (
+                <label className="flex items-start gap-3 p-3 bg-amber-50 border border-amber-300 rounded-xl cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={confirmedConfidence}
+                    onChange={(e) => setConfirmedConfidence(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-amber-400 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-amber-950 font-semibold leading-relaxed">
+                    I have physically verified the medication name, strength, dosage, and schedule against the prescription container label.
+                  </span>
+                </label>
+              )}
+
               <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowAddMedModal(false)}
+                  onClick={() => {
+                    setShowAddMedModal(false);
+                    setScanResult(null);
+                    setConfirmedConfidence(false);
+                  }}
                   className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow"
+                  disabled={Boolean(scanResult && !confirmedConfidence)}
+                  className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl shadow-xs transition"
                 >
                   Save & Generate 7-Day Schedule
                 </button>

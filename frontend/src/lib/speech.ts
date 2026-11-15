@@ -1,7 +1,7 @@
 /**
- * Browser Speech Synthesis utility for Elder Accessibility
+ * Browser Speech Synthesis utility for Elder Accessibility with Multilingual Support (en-IN, hi-IN, mr-IN)
  */
-export function speakText(text: string): void {
+export function speakText(text: string, lang: string = 'en-IN'): void {
   if (!('speechSynthesis' in window)) {
     console.warn('Speech synthesis not supported on this browser.');
     return;
@@ -11,9 +11,9 @@ export function speakText(text: string): void {
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.rate = 0.9; // Slightly slower, clearer pace for elders
+  utterance.rate = 0.88; // Slightly slower, clear pace for elderly listeners
   utterance.pitch = 1.0;
-  utterance.lang = 'en-IN'; // Indian English voice preference if available
+  utterance.lang = lang;
 
   window.speechSynthesis.speak(utterance);
 }

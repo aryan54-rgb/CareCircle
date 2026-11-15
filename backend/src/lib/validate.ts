@@ -37,3 +37,21 @@ export const updateSettingsSchema = z.object({
   demoMode: z.boolean().optional(),
   timezone: z.string().optional(),
 });
+
+export const createMedicationSchema = z.object({
+  name: z.string().min(2).max(100),
+  strength: z.string().min(1).max(50),
+  form: z.string().min(1).max(50).default('tablet'),
+  instructions: z.string().max(500).default(''),
+  times: z.array(z.string().regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Time must be HH:mm')).min(1),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).optional().default([0, 1, 2, 3, 4, 5, 6]),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD').optional(),
+  pillCount: z.number().int().min(0).optional(),
+  refillThreshold: z.number().int().min(0).optional(),
+});
+
+export const updateMedicationSchema = createMedicationSchema.partial().extend({
+  active: z.boolean().optional(),
+});
+

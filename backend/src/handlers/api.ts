@@ -5,6 +5,8 @@ import { AppError } from '../lib/errors.js';
 import { nowISO } from '../lib/time.js';
 import { authRoutes } from '../routes/auth.js';
 import { circleRoutes } from '../routes/circle.js';
+import { medsRoutes } from '../routes/meds.js';
+import { dosesRoutes } from '../routes/doses.js';
 
 const app = new Hono();
 
@@ -57,6 +59,8 @@ app.get('/', (c) => {
 
 // Mount modular sub-routers
 app.route('/auth', authRoutes);
+app.route('/meds', medsRoutes);
+app.route('/doses', dosesRoutes);
 app.route('/', circleRoutes);
 
 export const handler = handle(app);

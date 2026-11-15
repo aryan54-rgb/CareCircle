@@ -6,3 +6,5 @@ samconfig.toml
 venv/
 *.log
 .DS_Store
+.vercel
+

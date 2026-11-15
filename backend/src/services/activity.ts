@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient } from '../db/client.js';
 import { Keys } from '../db/keys.js';
@@ -22,7 +23,7 @@ export const activityService = {
     action: string;
     summary: string;
   }): Promise<ActivityItem> {
-    const id = Math.random().toString(36).substring(2, 9);
+    const id = crypto.randomUUID();
     const createdAt = nowISO();
     const item: ActivityItem = {
       id,

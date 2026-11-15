@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import {
   GetCommand,
   PutCommand,
@@ -39,7 +40,7 @@ export const suggestionRepo = {
     proposedByName: string;
     proposedByRole: Role;
   }): Promise<SuggestionItem> {
-    const id = Math.random().toString(36).substring(2, 10);
+    const id = crypto.randomUUID();
     const createdAt = new Date().toISOString();
 
     const item: SuggestionItem = {

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Hono } from 'hono';
 import { circleRepo } from '../db/repos/circleRepo.js';
 import { memberRepo } from '../db/repos/memberRepo.js';
@@ -92,11 +93,11 @@ circleRoutes.post('/circle/invites', requireRoles(['CARETAKER']), async (c) => {
     throw Errors.badRequest(parsed.error.errors.map((e) => e.message).join(', '));
   }
 
-  // Generate clean 6-character code (avoid confusing chars like 0, O, 1, I)
+  // Generate clean 6-character code using cryptographically secure random integers
   const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
   let code = '';
   for (let i = 0; i < 6; i++) {
-    code += chars.charAt(Math.floor(Math.random() * chars.length));
+    code += chars.charAt(crypto.randomInt(0, chars.length));
   }
 
   const expiresAt = addDays(new Date(), 2).toISOString(); // 48 hours

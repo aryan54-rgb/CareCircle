@@ -14,9 +14,9 @@ Globals:
     Environment:
       Variables:
         TABLE_NAME: !Ref CareTable
-        JWT_PARAM_NAME: /carecircle/jwt-secret
-        SES_FROM: carecircle-demo@carecircle.local
-        APP_URL: http://localhost:5173
+        JWT_PARAM_NAME: /carecircle/jwt-secret-v2
+        SES_FROM: !Ref SesFrom
+        APP_URL: !Ref AppUrl
         BEDROCK_REGION: us-east-1
         BEDROCK_MODEL_ID: us.amazon.nova-2-lite-v1:0
         MAIL_DRIVER: ses
@@ -27,6 +27,12 @@ Parameters:
     Type: String
     Default: dev
     Description: Environment stage (dev/prod)
+  SesFrom:
+    Type: String
+    Description: Verified SES sender email address (no default; must specify in sam deploy)
+  AppUrl:
+    Type: String
+    Description: Frontend application base URL for links (no default; must specify in sam deploy)
 
 Resources:
   # ==========================================
@@ -64,16 +70,6 @@ Resources:
         AttributeName: ttl
         Enabled: true
 
-  # ==========================================
-  # JWT Secret SSM Parameter
-  # ==========================================
-  JwtSecretParameter:
-    Type: AWS::SSM::Parameter
-    Properties:
-      Name: /carecircle/jwt-secret
-      Type: String
-      Value: carecircle-super-secret-jwt-key-for-hackathon-2026-min32chars!
-      Description: Secret key used to sign and verify CareCircle JWTs
 
   # ==========================================
   # HTTP API Gateway
@@ -113,6 +109,8 @@ Resources:
               Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
+                - ses:GetAccount
+                - ses:GetEmailIdentity
               Resource: '*'
             - Effect: Allow
               Action:
@@ -159,6 +157,8 @@ Resources:
               Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
+                - ses:GetAccount
+                - ses:GetEmailIdentity
               Resource: '*'
       Events:
         TickerSchedule:
@@ -206,6 +206,8 @@ Resources:
               Action:
                 - ses:SendEmail
                 - ses:SendRawEmail
+                - ses:GetAccount
+                - ses:GetEmailIdentity
               Resource: '*'
             - Effect: Allow
               Action:

@@ -8,7 +8,7 @@ export const createCircleSchema = z.object({
   elderName: z.string().min(2).max(100),
   caretakerName: z.string().min(2).max(100),
   caretakerEmail: z.string().email(),
-  caretakerPasscode: z.string().min(4).max(20),
+  caretakerPasscode: z.string().min(6).max(20),
   timezone: z.string().default('Asia/Kolkata'),
 });
 
@@ -16,12 +16,12 @@ export const joinCircleSchema = z.object({
   inviteCode: z.string().min(4).max(10),
   name: z.string().min(2).max(100),
   email: z.string().email(),
-  passcode: z.string().min(4).max(20),
+  passcode: z.string().min(6).max(20),
 });
 
 export const loginSchema = z.object({
   email: z.string().email(),
-  passcode: z.string().min(4).max(20),
+  passcode: z.string().min(6).max(20),
 });
 
 export const createInviteSchema = z.object({

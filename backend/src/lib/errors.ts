@@ -17,5 +17,6 @@ export const Errors = {
   locked: (msg = 'Account temporarily locked. Try again in 15 minutes.') =>
     new AppError('ACCOUNT_LOCKED', msg, 429),
   badRequest: (msg = 'Bad Request') => new AppError('BAD_REQUEST', msg, 400),
+  serviceUnavailable: (msg = 'Service Unavailable') => new AppError('SERVICE_UNAVAILABLE', msg, 503),
   internal: (msg = 'Internal Server Error') => new AppError('INTERNAL_ERROR', msg, 500),
 };

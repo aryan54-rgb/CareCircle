@@ -3,6 +3,7 @@ import { verifyConfirmToken } from '../services/tokens.js';
 import { doseRepo, parseDoseId } from '../db/repos/doseRepo.js';
 import { medRepo } from '../db/repos/medRepo.js';
 import { activityService } from '../services/activity.js';
+import { escapeHtml } from '../lib/html.js';
 import { Errors } from '../lib/errors.js';
 
 const publicRoutes = new Hono();
@@ -26,12 +27,13 @@ publicRoutes.get('/confirm', async (c) => {
       return c.html(renderErrorPage('Dose Not Found', 'This scheduled medication dose could not be found.'));
     }
 
+    const safeMedName = escapeHtml(dose.medName);
+
     if (dose.status === 'TAKEN') {
       return c.html(
         renderSuccessPage(
           'Already Confirmed!',
-          `This dose of <strong>${dose.medName}</strong> has already been recorded as TAKEN.`,
-          dose.medName
+          `This dose of <strong>${safeMedName}</strong> has already been recorded as TAKEN.`
         )
       );
     }
@@ -40,8 +42,7 @@ publicRoutes.get('/confirm', async (c) => {
       return c.html(
         renderSuccessPage(
           'Dose Skipped',
-          `This dose of <strong>${dose.medName}</strong> was recorded as SKIPPED.`,
-          dose.medName
+          `This dose of <strong>${safeMedName}</strong> was recorded as SKIPPED.`
         )
       );
     }
@@ -50,6 +51,12 @@ publicRoutes.get('/confirm', async (c) => {
     const actionTitle = isTake ? 'Confirm You Took Your Medication' : 'Confirm Skipping Dose';
     const buttonText = isTake ? '✓ Yes, I Took It' : 'Skip This Dose';
     const buttonBg = isTake ? '#16a34a' : '#64748b';
+
+    const clientPayload = JSON.stringify({
+      token,
+      buttonText,
+      medName: dose.medName,
+    });
 
     return c.html(`
       <!DOCTYPE html>
@@ -101,6 +108,7 @@ publicRoutes.get('/confirm', async (c) => {
             font-weight: 800;
             color: #2563eb;
             margin: 16px 0;
+            word-break: break-word;
           }
           p {
             font-size: 18px;
@@ -141,11 +149,11 @@ publicRoutes.get('/confirm', async (c) => {
       <body>
         <div class="card" id="main-card">
           <div class="badge">One-Tap Confirmation</div>
-          <h1>${actionTitle}</h1>
-          <div class="med-name">${dose.medName}</div>
+          <h1>${escapeHtml(actionTitle)}</h1>
+          <div class="med-name">${safeMedName}</div>
           <p>Tap the button below to update your care circle immediately.</p>
-          <button class="btn" id="confirm-btn" onclick="submitConfirm()">
-            ${buttonText}
+          <button class="btn" id="confirm-btn">
+            ${escapeHtml(buttonText)}
           </button>
           <div class="status" id="status-msg"></div>
           <div class="footer">
@@ -153,46 +161,54 @@ publicRoutes.get('/confirm', async (c) => {
           </div>
         </div>
 
-        <script>
-          async function submitConfirm() {
-            const btn = document.getElementById('confirm-btn');
-            const status = document.getElementById('status-msg');
-            btn.disabled = true;
-            btn.style.opacity = '0.7';
-            btn.innerText = 'Updating...';
+        <script type="application/json" id="client-payload">${clientPayload}</script>
 
-            try {
-              const res = await fetch('/p/confirm', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: '${token}' })
-              });
-              const data = await res.json();
-              if (res.ok) {
-                document.getElementById('main-card').innerHTML = \`
-                  <div style="font-size: 64px; color: #16a34a; margin-bottom: 16px;">✓</div>
-                  <h1 style="color: #16a34a;">Recorded Successfully!</h1>
-                  <div class="med-name">${dose.medName}</div>
-                  <p style="font-size: 20px; color: #334155;">Your care circle has been notified.</p>
-                  <div class="footer">You may now close this browser tab.</div>
-                \`;
-              } else {
+        <script>
+          (function() {
+            var rawData = document.getElementById('client-payload').textContent;
+            var data = JSON.parse(rawData || '{}');
+            var btn = document.getElementById('confirm-btn');
+            var status = document.getElementById('status-msg');
+
+            btn.addEventListener('click', async function() {
+              btn.disabled = true;
+              btn.style.opacity = '0.7';
+              btn.textContent = 'Updating...';
+
+              try {
+                var res = await fetch('/p/confirm', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ token: data.token })
+                });
+                var json = await res.json();
+                if (res.ok) {
+                  var mainCard = document.getElementById('main-card');
+                  mainCard.innerHTML =
+                    '<div style="font-size: 64px; color: #16a34a; margin-bottom: 16px;">✓</div>' +
+                    '<h1 style="color: #16a34a;">Recorded Successfully!</h1>' +
+                    '<div class="med-name" id="success-med"></div>' +
+                    '<p style="font-size: 20px; color: #334155;">Your care circle has been notified.</p>' +
+                    '<div class="footer">You may now close this browser tab.</div>';
+                  document.getElementById('success-med').textContent = data.medName;
+                } else {
+                  btn.disabled = false;
+                  btn.style.opacity = '1';
+                  btn.textContent = data.buttonText;
+                  status.style.display = 'block';
+                  status.style.color = '#dc2626';
+                  status.textContent = (json.error && json.error.message) || 'Failed to record. Please try again.';
+                }
+              } catch (err) {
                 btn.disabled = false;
                 btn.style.opacity = '1';
-                btn.innerText = '${buttonText}';
+                btn.textContent = data.buttonText;
                 status.style.display = 'block';
                 status.style.color = '#dc2626';
-                status.innerText = data.error?.message || 'Failed to record. Please try again.';
+                status.textContent = 'Network error. Please try again.';
               }
-            } catch (err) {
-              btn.disabled = false;
-              btn.style.opacity = '1';
-              btn.innerText = '${buttonText}';
-              status.style.display = 'block';
-              status.style.color = '#dc2626';
-              status.innerText = 'Network error. Please try again.';
-            }
-          }
+            });
+          })();
         </script>
       </body>
       </html>
@@ -270,14 +286,14 @@ publicRoutes.post('/confirm', async (c) => {
   });
 });
 
-function renderSuccessPage(title: string, message: string, medName: string): string {
+function renderSuccessPage(title: string, message: string): string {
   return `
     <!DOCTYPE html>
     <html lang="en">
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${title}</title>
+      <title>${escapeHtml(title)}</title>
       <style>
         body { font-family: -apple-system, sans-serif; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
         .card { background: #fff; padding: 36px 28px; border-radius: 16px; max-width: 440px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -288,7 +304,7 @@ function renderSuccessPage(title: string, message: string, medName: string): str
     <body>
       <div class="card">
         <div style="font-size: 56px; color: #16a34a; margin-bottom: 10px;">✓</div>
-        <h1>${title}</h1>
+        <h1>${escapeHtml(title)}</h1>
         <p>${message}</p>
         <p style="font-size: 13px; color: #94a3b8;">You can safely close this page.</p>
       </div>
@@ -304,7 +320,7 @@ function renderErrorPage(title: string, message: string): string {
     <head>
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>${title}</title>
+      <title>${escapeHtml(title)}</title>
       <style>
         body { font-family: -apple-system, sans-serif; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; text-align: center; }
         .card { background: #fff; padding: 36px 28px; border-radius: 16px; max-width: 440px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -315,8 +331,8 @@ function renderErrorPage(title: string, message: string): string {
     <body>
       <div class="card">
         <div style="font-size: 56px; color: #dc2626; margin-bottom: 10px;">!</div>
-        <h1>${title}</h1>
-        <p>${message}</p>
+        <h1>${escapeHtml(title)}</h1>
+        <p>${escapeHtml(message)}</p>
         <p style="font-size: 13px; color: #94a3b8;">CareCircle Platform</p>
       </div>
     </body>

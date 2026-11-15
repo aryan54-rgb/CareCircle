@@ -1,30 +1,34 @@
 import { Hono } from 'hono';
 import { circleRepo, DEMO_CIRCLE_SETTINGS } from '../db/repos/circleRepo.js';
 import { doseRepo, parseDoseId } from '../db/repos/doseRepo.js';
-import { medRepo } from '../db/repos/medRepo.js';
-import { memberRepo } from '../db/repos/memberRepo.js';
 import { docClient } from '../db/client.js';
 import { Keys } from '../db/keys.js';
 import { config } from '../lib/config.js';
-import { requireAuth } from '../lib/middleware.js';
-import { addMinutes, nowISO } from '../lib/time.js';
+import { requireAuth, requireRoles } from '../lib/middleware.js';
+import { addMinutes } from '../lib/time.js';
 import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { Errors } from '../lib/errors.js';
+import { seedDemoCircle } from '../services/demoSeed.js';
+import { runWeeklyDigest } from '../handlers/digest.js';
 
 const demoRoutes = new Hono();
 
+// Enforce authentication, CARETAKER role, and DEMO_MODE on all /demo endpoints
 demoRoutes.use('*', requireAuth);
-
-/**
- * POST /demo/trigger-missed
- * Helper for live hackathon demo: forces an open dose into due state under demo timing
- * (pre=0, e1=1min, e2=2min, missed=3min) so escalations happen in real-time
- */
-demoRoutes.post('/trigger-missed', async (c) => {
+demoRoutes.use('*', requireRoles(['CARETAKER']));
+demoRoutes.use('*', async (c, next) => {
   if (!config.isDemoMode) {
     throw Errors.forbidden('Demo mode is disabled');
   }
+  await next();
+});
 
+/**
+ * POST /demo/trigger-missed
+ * Forces an open dose into due state under demo timing
+ * (pre=0, e1=1min, e2=2min, missed=3min) so escalations happen in real-time
+ */
+demoRoutes.post('/trigger-missed', async (c) => {
   const user = c.get('user');
   const body = await c.req.json().catch(() => ({}));
 
@@ -50,7 +54,7 @@ demoRoutes.post('/trigger-missed', async (c) => {
 
   // 3. Backdate dueAt and nextActionAt to trigger immediately
   const now = new Date();
-  const pastDue = addMinutes(now, -1).toISOString(); // 1 minute in past
+  const pastDue = addMinutes(now, -1).toISOString();
   const { dueAt, medId } = parseDoseId(targetDose.id);
 
   await docClient.send(
@@ -76,6 +80,43 @@ demoRoutes.post('/trigger-missed', async (c) => {
       escalated2At: 'In ~2 minutes (Family + Caretakers notified)',
       missedAt: 'In ~3 minutes (Marked MISSED, counts towards adherence)',
     },
+  });
+});
+
+/**
+ * POST /demo/reset
+ * Resets the demo circle to pristine seed state.
+ * Only permitted on circleId "demo-circle" and only by CARETAKER when DEMO_MODE is true.
+ */
+demoRoutes.post('/reset', async (c) => {
+  const user = c.get('user');
+  if (user.circleId !== 'demo-circle') {
+    throw Errors.forbidden('/demo/reset is strictly limited to circleId "demo-circle"');
+  }
+
+  await seedDemoCircle({
+    elderEmail: process.env.ELDER_EMAIL,
+    caretakerEmail: process.env.CARETAKER_EMAIL,
+    familyEmail: process.env.FAMILY_EMAIL,
+  });
+
+  return c.json({
+    success: true,
+    message: 'Demo circle reset and re-seeded successfully.',
+    circleId: 'demo-circle',
+  });
+});
+
+/**
+ * POST /demo/digest
+ * Manually triggers the weekly adherence digest calculation and emails
+ */
+demoRoutes.post('/digest', async (c) => {
+  const result = await runWeeklyDigest(new Date());
+  return c.json({
+    success: true,
+    message: 'Weekly digest executed successfully',
+    result,
   });
 });
 

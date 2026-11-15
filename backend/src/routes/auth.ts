@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Hono } from 'hono';
 import bcrypt from 'bcryptjs';
 import { circleRepo, DEFAULT_CIRCLE_SETTINGS } from '../db/repos/circleRepo.js';
@@ -31,8 +32,8 @@ authRoutes.post('/circles', async (c) => {
     throw Errors.conflict('Email is already registered in a care circle.');
   }
 
-  const circleId = Math.random().toString(36).substring(2, 10);
-  const memberId = Math.random().toString(36).substring(2, 10);
+  const circleId = crypto.randomUUID();
+  const memberId = crypto.randomUUID();
 
   // Hash passcode
   const passcodeHash = await bcrypt.hash(caretakerPasscode, 10);
@@ -104,28 +105,38 @@ authRoutes.post('/join', async (c) => {
   const { inviteCode, name, email, passcode } = parsed.data;
   const normalizedEmail = email.toLowerCase().trim();
 
-  // 1. Verify Invite Code
+  // 1. Rate limiting on join attempts to prevent brute-force
+  const attempts = await authRepo.getFailedAttempts(normalizedEmail);
+  if (attempts && attempts.count >= 5) {
+    throw Errors.locked();
+  }
+
+  // 2. Verify Invite Code
   const invite = await authRepo.getInvite(inviteCode);
   if (!invite) {
+    const count = await authRepo.recordFailedAttempt(normalizedEmail);
+    if (count >= 5) throw Errors.locked();
     throw Errors.notFound('Invite code is invalid or has expired.');
   }
 
   if (invite.usedAt) {
+    await authRepo.recordFailedAttempt(normalizedEmail);
     throw Errors.badRequest('Invite code has already been used.');
   }
 
   if (new Date(invite.expiresAt).getTime() < Date.now()) {
+    await authRepo.recordFailedAttempt(normalizedEmail);
     throw Errors.badRequest('Invite code has expired.');
   }
 
-  // 2. Check if email already registered
+  // 3. Check if email already registered
   const existingLookup = await authRepo.getLoginLookup(normalizedEmail);
   if (existingLookup) {
     throw Errors.conflict('Email is already registered in a care circle.');
   }
 
-  // 3. Create member with the invited role
-  const memberId = Math.random().toString(36).substring(2, 10);
+  // 4. Create member with the invited role
+  const memberId = crypto.randomUUID();
   const passcodeHash = await bcrypt.hash(passcode, 10);
 
   const member = await memberRepo.create({
@@ -137,8 +148,9 @@ authRoutes.post('/join', async (c) => {
     passcodeHash,
   });
 
-  // 4. Mark invite as used
+  // 5. Mark invite as used & clear failed attempts
   await authRepo.markInviteUsed(inviteCode, memberId);
+  await authRepo.clearFailedAttempts(normalizedEmail);
 
   // 5. Set Login Lookup
   await authRepo.setLoginLookup(normalizedEmail, invite.circleId, memberId);

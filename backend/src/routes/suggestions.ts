@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Hono } from 'hono';
 import { suggestionRepo } from '../db/repos/suggestionRepo.js';
 import { memberRepo } from '../db/repos/memberRepo.js';
@@ -91,7 +92,7 @@ suggestionsRoutes.post('/:id/approve', requirePermission('DECIDE_SUGGESTION'), a
   // Execute the suggested action
   if (item.type === 'NEW_MED') {
     const p = item.payload;
-    const medId = Math.random().toString(36).substring(2, 10);
+    const medId = crypto.randomUUID();
     const med = await medRepo.create({
       medId,
       circleId: user.circleId,

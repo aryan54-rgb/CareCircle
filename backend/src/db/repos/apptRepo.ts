@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import {
   DeleteCommand,
   GetCommand,
@@ -65,7 +66,7 @@ export const apptRepo = {
     startsAt: string;
     remind24hMinutes?: number; // default 1440
   }): Promise<AppointmentItem> {
-    const apptId = Math.random().toString(36).substring(2, 10);
+    const apptId = crypto.randomUUID();
     const now = new Date().toISOString();
     const remind24hMins = data.remind24hMinutes ?? 1440;
     const nextActionAt = addMinutes(data.startsAt, -remind24hMins).toISOString();

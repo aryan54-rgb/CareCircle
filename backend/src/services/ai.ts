@@ -4,6 +4,7 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 import { z } from 'zod';
 import { config } from '../lib/config.js';
+import { Errors } from '../lib/errors.js';
 
 export const prescriptionExtractSchema = z.object({
   name: z.string().min(1),
@@ -88,18 +89,10 @@ If multiple times per day are mentioned (e.g. twice daily), specify reasonable s
       const parsed = JSON.parse(cleanJson);
       return prescriptionExtractSchema.parse(parsed);
     } catch (err: any) {
-      console.warn('[Bedrock] Bedrock call failed or model not enabled, using fallback extraction:', err.message);
-      // Fallback draft for hackathon demo resilience if Bedrock permissions are still propagating
-      return {
-        name: 'Amoxicillin',
-        strength: '500mg',
-        form: 'capsule',
-        frequency: 'twice daily',
-        times: ['09:00', '21:00'],
-        durationDays: 7,
-        instructions: 'Take 1 capsule twice a day after meals with water',
-        confidence: 0.88,
-      };
+      console.warn('[Bedrock] Bedrock call failed or model unavailable:', err.message);
+      throw Errors.serviceUnavailable(
+        'Scan unavailable, enter manually: Bedrock AI model could not be reached.'
+      );
     }
   },
 

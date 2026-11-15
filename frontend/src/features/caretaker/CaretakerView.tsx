@@ -78,6 +78,7 @@ export const CaretakerView: React.FC = () => {
   // Scan state
   const [scanLoading, setScanLoading] = useState<boolean>(false);
   const [scanResult, setScanResult] = useState<any>(null);
+  const [scanError, setScanError] = useState<string>('');
 
   const loadAll = async () => {
     try {
@@ -232,6 +233,8 @@ export const CaretakerView: React.FC = () => {
     reader.onload = async () => {
       const base64 = reader.result as string;
       setScanLoading(true);
+      setScanError('');
+      setScanResult(null);
       try {
         const res = await apiRequest('/scan/prescription', {
           method: 'POST',
@@ -252,7 +255,8 @@ export const CaretakerView: React.FC = () => {
           });
         }
       } catch (err: any) {
-        alert(err.message || 'Failed to analyze prescription');
+        console.warn('Prescription scan failed:', err);
+        setScanError('Scan unavailable, enter manually. The AI service could not be reached.');
       } finally {
         setScanLoading(false);
       }
@@ -931,6 +935,27 @@ export const CaretakerView: React.FC = () => {
             {scanLoading && (
               <div className="p-4 bg-blue-50 text-blue-700 rounded-xl text-sm font-bold text-center mb-4 animate-pulse">
                 Analyzing document with Amazon Bedrock Converse API...
+              </div>
+            )}
+
+            {scanError && (
+              <div className="p-4 bg-amber-50 border border-amber-300 text-amber-900 rounded-2xl text-sm mb-4">
+                <div className="font-extrabold flex items-center gap-1.5 mb-1 text-amber-800">
+                  <AlertTriangle size={16} className="text-amber-600 flex-shrink-0" />
+                  <span>Scan unavailable, enter manually</span>
+                </div>
+                <p className="text-xs text-amber-700 mb-3">
+                  AI prescription extraction is currently unavailable. You can easily enter the medication schedule details manually.
+                </p>
+                <button
+                  onClick={() => {
+                    setShowScanModal(false);
+                    setShowAddMedModal(true);
+                  }}
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs py-2.5 px-3 rounded-xl transition shadow-xs"
+                >
+                  Enter Medication Details Manually
+                </button>
               </div>
             )}
 

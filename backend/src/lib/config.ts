@@ -7,7 +7,7 @@ export const config = {
   sesFrom: process.env.SES_FROM || 'carecircle-demo@carecircle.local',
   appUrl: process.env.APP_URL || 'http://localhost:5173',
   apiUrl: process.env.API_URL || 'https://odu8ihixga.execute-api.ap-south-1.amazonaws.com',
-  jwtParamName: process.env.JWT_PARAM_NAME || '/carecircle/jwt-secret',
+  jwtParamName: process.env.JWT_PARAM_NAME || '/carecircle/jwt-secret-v2',
   bedrockRegion: process.env.BEDROCK_REGION || 'us-east-1',
   bedrockModelId: process.env.BEDROCK_MODEL_ID || 'us.amazon.nova-2-lite-v1:0',
   mailDriver: (process.env.MAIL_DRIVER || 'ses') as 'ses' | 'smtp' | 'log',
@@ -33,11 +33,10 @@ export const config = {
         cachedJwtSecret = res.Parameter.Value;
         return cachedJwtSecret;
       }
-    } catch (err) {
-      console.warn('Could not fetch JWT secret from SSM, using fallback local secret', err);
+      throw new Error(`SSM parameter ${this.jwtParamName} returned empty value`);
+    } catch (err: any) {
+      console.error(`[Config] Failed to fetch JWT secret from SSM parameter "${this.jwtParamName}":`, err.message);
+      throw new Error(`JWT secret unavailable: could not load SSM parameter "${this.jwtParamName}" (${err.message})`);
     }
-
-    cachedJwtSecret = 'carecircle-fallback-dev-secret-key-32chars!';
-    return cachedJwtSecret;
   },
 };

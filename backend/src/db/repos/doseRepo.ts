@@ -119,6 +119,46 @@ export const doseRepo = {
 
 
   /**
+   * Puts a dose only if it does not already exist (preserves history and marked states via attribute_not_exists)
+   */
+  async putIfMissing(d: GeneratedDose): Promise<boolean> {
+    const now = new Date().toISOString();
+    const id = toDoseId(d.dueAt, d.medId);
+    const item: DoseItem = {
+      id,
+      circleId: d.circleId,
+      medId: d.medId,
+      medName: d.medName,
+      dueAt: d.dueAt,
+      status: d.status,
+      nextActionAt: d.nextActionAt,
+      GSI1PK: d.GSI1PK,
+      GSI1SK: d.GSI1SK,
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    try {
+      await docClient.send(
+        new PutCommand({
+          TableName: config.tableName,
+          Item: {
+            ...Keys.dose(d.circleId, d.dueAt, d.medId),
+            ...item,
+          },
+          ConditionExpression: 'attribute_not_exists(PK)',
+        })
+      );
+      return true;
+    } catch (err: any) {
+      if (err.name === 'ConditionalCheckFailedException') {
+        return false;
+      }
+      throw err;
+    }
+  },
+
+  /**
    * Finds future SCHEDULED doses for a medication and deletes them (for editing/deactivation)
    */
   async deleteFutureScheduled(circleId: string, medId: string, fromISO: string): Promise<number> {

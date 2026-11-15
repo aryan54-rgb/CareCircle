@@ -2,7 +2,7 @@
  * Integration Test for Phase 3:
  * Ticker State Machine + One-Tap Confirmation + Demo Escalation
  */
-process.env.JWT_SECRET = 'carecircle-super-secret-jwt-key-for-hackathon-2026-min32chars!';
+const JWT_SECRET = process.env.JWT_SECRET;
 const API_URL = process.env.API_URL || 'https://odu8ihixga.execute-api.ap-south-1.amazonaws.com';
 
 async function request(path: string, options: RequestInit = {}) {

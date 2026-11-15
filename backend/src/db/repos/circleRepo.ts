@@ -1,4 +1,4 @@
-import { GetCommand, PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, PutCommand, ScanCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { docClient } from '../client.js';
 import { Keys } from '../keys.js';
 import { config } from '../../lib/config.js';
@@ -97,5 +97,27 @@ export const circleRepo = {
     );
 
     return newSettings;
+  },
+
+  async listAll(): Promise<Circle[]> {
+    const res = await docClient.send(
+      new ScanCommand({
+        TableName: config.tableName,
+        FilterExpression: 'SK = :meta',
+        ExpressionAttributeValues: {
+          ':meta': 'META',
+        },
+      })
+    );
+    return (res.Items || [])
+      .filter((item: any) => typeof item.circleId === 'string')
+      .map((item: any) => ({
+        circleId: item.circleId,
+        name: item.name,
+        elderName: item.elderName,
+        timezone: item.timezone || 'Asia/Kolkata',
+        settings: item.settings || DEFAULT_CIRCLE_SETTINGS,
+        createdAt: item.createdAt,
+      }));
   },
 };

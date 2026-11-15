@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Hono } from 'hono';
 import { medRepo } from '../db/repos/medRepo.js';
 import { doseRepo } from '../db/repos/doseRepo.js';
@@ -58,7 +59,7 @@ medsRoutes.post('/', requirePermission('MANAGE_MEDS'), async (c) => {
   if (!circle) throw Errors.notFound('Circle not found');
   const actorName = member?.name || user.role;
 
-  const medId = Math.random().toString(36).substring(2, 10);
+  const medId = crypto.randomUUID();
   const med = await medRepo.create({
     medId,
     circleId: user.circleId,
